@@ -38,7 +38,10 @@ class GameViewController: NSViewController {
     scene.rootNode.addChildNode(ambientLightNode)
     
     let floorNode = SCNNode()
-    floorNode.geometry = SCNFloor()
+    let floor = SCNFloor()
+    
+    floor.reflectivity = 0.5
+    floorNode.geometry = floor
     scene.rootNode.addChildNode(floorNode)
     
     let ret = gen()
@@ -75,7 +78,7 @@ class GameViewController: NSViewController {
     self.time = updateSim(points: &self.points!, lines: &self.lines!, time: self.time)
     draw(points: self.points!, lines: self.lines!, scene: scene)
 
-    perform(#selector(update), with: nil, afterDelay: 0.08)
+    perform(#selector(update), with: nil, afterDelay: 0.02)//0.0000001)
   }
 }
 
@@ -108,7 +111,7 @@ func gen() -> (points: [Point], springs: [Spring]) {
       for z in 0...1 {
         // (0,0,0) or (0.1,0.1,0.1) and all combinations
         points.append(Point(x: Double(x) / 10.0,
-                            y: 0.2 + Double(y) / 10.0,
+                            y: /*0.2 + */Double(y) / 10.0,
                             z: Double(z) / 10.0,
                             vx: 0,
                             vy: 0,
@@ -125,7 +128,7 @@ func gen() -> (points: [Point], springs: [Spring]) {
       let p1 = points[i]
       let p2 = points[j]
       let length = (pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2)).squareRoot()
-      springs.append(Spring(k: 5000, p1: i, p2: j, l0: length, currentl: length))
+      springs.append(Spring(k: 10000, p1: i, p2: j, l0: length, currentl: length))
     }
   }
   return (points, springs)
@@ -133,13 +136,14 @@ func gen() -> (points: [Point], springs: [Spring]) {
 
 func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Double {
   var t = time
+  let friction = 0.5
   let dt = 0.0000005
   let dampening = 1 - (dt * 1000)
   let gravity = -9.81
-  // 60 fps - 0.0166
-  let limit = t + 0.00003
+  // 60 fps - 0.000166
+  let limit = t + 0.00001//0.00001
   while t < limit {
-    let adjust = 1 + sin(t * 10000) * 0.1
+    let adjust = 1 + sin(t * 300000) * 0.1
     for l in lines {
       let dist = sqrt(pow(points[l.p1].x - points[l.p2].x, 2) + pow(points[l.p1].y - points[l.p2].y, 2) + pow(points[l.p1].z - points[l.p2].z, 2))
 
@@ -160,12 +164,23 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
     }
     for i in 0..<points.count {
       var fy = points[i].fy
+      var fx = points[i].fx
+      var fz = points[i].fz
+
       if points[i].y < 0 {
         fy += -100000 * points[i].y
+        let fh = sqrt(pow(fx, 2) + pow(fz, 2))
+        if fh < abs(fy * friction) {
+          fx = 0
+          fz = 0
+        } else {
+          fx = fx - fy * friction
+          fz = fz - fy * friction
+        }
       }
-      let ax = points[i].fx / points[i].mass
+      let ax = fx / points[i].mass
       let ay = fy / points[i].mass + gravity
-      let az = points[i].fz / points[i].mass
+      let az = fz / points[i].mass
       // reset the force cache
       points[i].fx = 0
       points[i].fy = 0
