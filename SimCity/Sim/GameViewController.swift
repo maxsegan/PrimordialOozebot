@@ -9,6 +9,12 @@
 import SceneKit
 import QuartzCore
 
+let kSpring: Double = 10000.0
+let kGround: Double = 100000.0
+let kOscillationFrequency: Double = 100000
+let kUseTetrahedron = false
+let kDropHeight: Double = 0
+
 class GameViewController: NSViewController {
   let scene = SCNScene()
   var time: Double = 0.0
@@ -106,20 +112,65 @@ struct Spring {
 func gen() -> (points: [Point], springs: [Spring]) {
   var points = [Point]()
   var springs = [Spring]()
-  for x in 0...1 {
-    for y in 0...1 {
-      for z in 0...1 {
-        // (0,0,0) or (0.1,0.1,0.1) and all combinations
-        points.append(Point(x: Double(x) / 10.0,
-                            y: /*0.2 + */Double(y) / 10.0,
-                            z: Double(z) / 10.0,
-                            vx: 0,
-                            vy: 0,
-                            vz: 0,
-                            mass: 0.1,
-                            fx: 0,
-                            fy: 0,
-                            fz: 0))
+  
+  if kUseTetrahedron {
+    // (+/-1, −1/√3, 0), (0, 2/√3, 0), (0, 0, 4/√6) all scaled by 10
+    points.append(Point(x: 0.1,
+                        y: kDropHeight,
+                        z: -0.1 / sqrt(3),
+                        vx: 0,
+                        vy: 0,
+                        vz: 0,
+                        mass: 0.1,
+                        fx: 0,
+                        fy: 0,
+                        fz: 0))
+    points.append(Point(x: -0.1,
+                        y: kDropHeight,
+                        z: -0.1 / sqrt(3),
+                        vx: 0,
+                        vy: 0,
+                        vz: 0,
+                        mass: 0.1,
+                        fx: 0,
+                        fy: 0,
+                        fz: 0))
+    points.append(Point(x: 0,
+                        y: kDropHeight,
+                        z: 0.2 / sqrt(3),
+                        vx: 0,
+                        vy: 0,
+                        vz: 0,
+                        mass: 0.1,
+                        fx: 0,
+                        fy: 0,
+                        fz: 0))
+    points.append(Point(x: 0,
+                        y: kDropHeight + 0.4 / sqrt(6),
+                        z: 0,
+                        vx: 0,
+                        vy: 0,
+                        vz: 0,
+                        mass: 0.1,
+                        fx: 0,
+                        fy: 0,
+                        fz: 0))
+  } else {
+    for x in 0...1 {
+      for y in 0...1 {
+        for z in 0...1 {
+          // (0,0,0) or (0.1,0.1,0.1) and all combinations
+          points.append(Point(x: Double(x) / 10.0,
+                              y: kDropHeight + Double(y) / 10.0,
+                              z: Double(z) / 10.0,
+                              vx: 0,
+                              vy: 0,
+                              vz: 0,
+                              mass: 0.1,
+                              fx: 0,
+                              fy: 0,
+                              fz: 0))
+        }
       }
     }
   }
@@ -128,7 +179,8 @@ func gen() -> (points: [Point], springs: [Spring]) {
       let p1 = points[i]
       let p2 = points[j]
       let length = (pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2)).squareRoot()
-      springs.append(Spring(k: 10000, p1: i, p2: j, l0: length, currentl: length))
+      print(length, i, j)
+      springs.append(Spring(k: kSpring, p1: i, p2: j, l0: length, currentl: length))
     }
   }
   return (points, springs)
@@ -143,7 +195,7 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
   // 60 fps - 0.000166
   let limit = t + 0.00001//0.00001
   while t < limit {
-    let adjust = 1 + sin(t * 300000) * 0.1
+    let adjust = 1 + sin(t * kOscillationFrequency) * 0.1
     for l in lines {
       let dist = sqrt(pow(points[l.p1].x - points[l.p2].x, 2) + pow(points[l.p1].y - points[l.p2].y, 2) + pow(points[l.p1].z - points[l.p2].z, 2))
 
@@ -168,11 +220,13 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
       var fz = points[i].fz
 
       if points[i].y < 0 {
-        fy += -100000 * points[i].y
+        fy += -kGround * points[i].y
         let fh = sqrt(pow(fx, 2) + pow(fz, 2))
         if fh < abs(fy * friction) {
           fx = 0
+          points[i].vx = 0
           fz = 0
+          points[i].vz = 0
         } else {
           fx = fx - fy * friction
           fz = fz - fy * friction
