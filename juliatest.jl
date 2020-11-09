@@ -86,7 +86,7 @@ function main()
     dampening::Float64 = 1 - (dt * 1000)
     gravity::Float64 = -9.81
 
-    limit::Float64 = limit = t + 0.1
+    limit::Float64 = t + 0.1
     println("num springs evaluated: ", size(springs)[1])
     println("time multiplier: ",  0.1 / dt)
 
