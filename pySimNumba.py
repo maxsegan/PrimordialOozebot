@@ -1,6 +1,7 @@
 
 import time
 import math
+import numpy
 from numba import jit
 
 kSpring = 10000.0
@@ -37,23 +38,31 @@ def main():
     dampening = 1 - (dt * 1000)
     gravity = -9.81
 
-    iterations = int(0.001 / dt)
+    limit = 0.001
     print("num springs evaluated: ", len(springs))
-    print("time multiplier: ",  iterations)
+    print("time multiplier: ",  limit / dt)
 
     start_time = time.time()
-    sim(iterations, friction, dt, dampening, gravity, points, springs)
-
+    sim(limit, friction, dt, dampening, gravity, points, springs)
+    print("--- %s seconds ---" % (time.time() - start_time))
+    
+    limit = 0.01
+    start_time = time.time()
+    sim(limit, friction, dt, dampening, gravity, points, springs)
     print("--- %s seconds ---" % (time.time() - start_time))
 
-@jit(nopython=False)
-def sim(iterations, friction, dt, dampening, gravity, points, springs):
+    start_time = time.time()
+    sim(limit, friction, dt, dampening, gravity, points, springs)
+    print("--- %s seconds ---" % (time.time() - start_time))
+
+@jit(nopython=True)
+def sim(limit, friction, dt, dampening, gravity, points, springs):
     t = 0.0
-    for i in range(iterations):
+    while t < limit:
         adjust = 1 + math.sin(t * kOscillationFrequency) * 0.1
         for l in springs:
-            p1 = points[l.p1]
-            p2 = points[l.p2]
+            p1 = points[int(l[1])]
+            p2 = points[int(l[2])]
             p1x = p1[0]
             p1y = p1[1]
             p1z = p1[2]
@@ -120,7 +129,7 @@ def genPointsAndSprings():
         for y in range(10):
             for z in range(10):
                 # (0,0,0) or (0.1,0.1,0.1) and all combinations
-                p = [x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0, 0, 0, 0.1, 0, 0, 0]
+                p = numpy.array([x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0])
                 points.append(p)
                 if not x in cache:
                     cache[x] = {}
@@ -145,9 +154,9 @@ def genPointsAndSprings():
                                 continue
                             p2 = cache[x1][y1][z1]
                             p2index = z1 + 10 * y1 + 100 * x1
-                            length = math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
-                            springs.append([kSpring, p1index, p2index, length, length])
-    return points, springs
+                            length = math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
+                            springs.append(numpy.array([kSpring, p1index, p2index, length, length]))
+    return numpy.array(points), numpy.array(springs)
 
 if __name__ == "__main__":
     main()
