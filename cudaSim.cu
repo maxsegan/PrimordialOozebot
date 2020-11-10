@@ -16,9 +16,6 @@ struct Point {
   double vy; // meters/second
   double vz; // meters/second
   double mass; // kg
-  double fx; // N - reset every iteration
-  double fy; // N
-  double fz; // N
   int numSprings; // Int - hack for CUDA ease
 };
 
@@ -27,6 +24,9 @@ struct Spring {
   int p1; // Index of first point
   int p2; // Index of second point
   double l0; // meters
+  double dx; // caching for CUDA ease
+  double dy; // caching for CUDA ease
+  double dz; // caching for CUDA ease
 };
 
 void genPointsAndSprings(
@@ -45,45 +45,57 @@ const double kOscillationFrequency = 0;
 const double kDropHeight = 0.2;
 const int pointsPerSide = 20;
 
-__global__ void update_point(Point *points, Spring **pointsToSprings, double adjust) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void update_spring(Point *points, Spring *springs, double adjust) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-	Point p1 = points[i];
+    Point p1 = points[s[i].p1];
+    Point p2 = points[s[i].p2];
 
-	for (int j = 0; j < p1.numSprings; j++) {
-    	Spring l = pointsToSprings[i][j];
-    	int p2index = l.p2;
-    	if (i == p2index) {
-    		p2index = l.p1;
-    	}
+    double p1x = p1.x;
+    double p1y = p1.y;
+    double p1z = p1.z;
+    double p2x = p2.x;
+    double p2y = p2.y;
+    double p2z = p2.z;
+    double dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2));
 
-        Point p2 = points[p2index];
+    // negative if repelling, positive if attracting
+    double f = l.k * (dist - (l.l0 * adjust));
+    // distribute force across the axes
+    double dx = f * (p1x - p2x) / dist;
+    double dy = f * (p1y - p2y) / dist;
+    double dz = f * (p1z - p2z) / dist;
 
-        double p1x = p1.x;
-        double p1y = p1.y;
-        double p1z = p1.z;
-        double p2x = p2.x;
-        double p2y = p2.y;
-        double p2z = p2.z;
-        double dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2));
+    springs
+    s[i].dx = dx;
+    s[i].dy = dy;
+    s[i].dz = dz;
+}
 
-        // negative if repelling, positive if attracting
-        double f = l.k * (dist - (l.l0 * adjust));
-        // distribute force across the axes
-        double dx = f * (p1x - p2x) / dist;
-        double dy = f * (p1y - p2y) / dist;
-        double dz = f * (p1z - p2z) / dist;
+__global__ void update_point(Point *points, Spring *springs, int **pointsToSprings) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    printf("%d, %d, %d, %d, %d, %d\n", threadIdx.x, threadIdx.y, threadIdx.z, blockIdx.x, blockIdx.y, blockIdx.z);
 
-        p1.fx -= dx;
-        p1.fy -= dy;
-        p1.fz -= dz;
+    Point p = points[i];
+    double fy = gravity * mass;
+    double fx = 0;
+    double fz = 0;
+    int *pToS = pointSprings[i]
+
+    for (int j = 0; j < p.numSprings; j++) {
+        Spring s = pToS[j];
+        if (s.p1 == i) {
+            fx -= s.dx;
+            fy -= s.dy;
+            fz -= s.dz;
+        } else {
+            fx += s.dx;
+            fy += s.dy;
+            fz += s.dz;
+        }
     }
-    Point p = p1;
         
     double mass = p.mass;
-    double fy = p.fy + gravity * mass;
-    double fx = p.fx;
-    double fz = p.fz;
     double y = p.y;
     double vx = p.vx;
     double vy = p.vy;
@@ -106,9 +118,6 @@ __global__ void update_point(Point *points, Spring **pointsToSprings, double adj
     double ay = fy / mass;
     double az = fz / mass;
     // reset the force cache
-    p.fx = 0;
-    p.fy = 0;
-    p.fz = 0;
     vx = (ax * dt + vx) * dampening;
     p.vx = vx;
     vy = (ay * dt + vy) * dampening;
@@ -128,29 +137,43 @@ int main() {
 
     genPointsAndSprings(points, springs, pointSprings);
     Point *p_d;
-    Spring **ps_d;
-    std::vector<Spring *> psd;
+    Spring *p_d;
+    int **ps_d;
+    std::vector<int *> psd;
     cudaMalloc(&p_d, points.size() * sizeof(Point));
     cudaMemcpy(p_d, &points[0], points.size() * sizeof(Point), cudaMemcpyHostToDevice);
-    cudaMalloc(&ps_d, points.size() * sizeof(Spring *));
+    cudaMalloc(&p_d, springs.size() * sizeof(Spring));
+    cudaMemcpy(p_d, &springs[0], points.size() * sizeof(Spring), cudaMemcpyHostToDevice);
+    cudaMalloc(&ps_d, points.size() * sizeof(int *));
     for (int i = 0; i < points.size(); i++) {
     	Spring *s_d;
     	psd.push_back(s_d);
-    	cudaMalloc(&s_d, pointSprings[i].size() * sizeof(Spring));
-    	cudaMemcpy(s_d, &pointSprings[i], pointSprings[i].size() * sizeof(Spring), cudaMemcpyHostToDevice);
+    	cudaMalloc(&s_d, pointSprings[i].size() * sizeof(int));
+    	cudaMemcpy(s_d, &pointSprings[i], pointSprings[i].size() * sizeof(int), cudaMemcpyHostToDevice);
     }
 
     double t = 0;
     // 60 fps - 0.000166
     double limit = 0.1;
+    int ppsSquare = pointsPerSide * pointsPerSide;
   
   	int numSprings = (int)springs.size();
+
+    if (numSprings % 1000 != 0) {
+        pringf("Whoa, issue with num springs\n");
+    }
+    int springThreads = 1000;
+    int springBlocks = numSprings / 1000;
     printf("num springs evaluated: %lld\n", long long int(limit / dt * numSprings));
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     while (t < limit) {
         double adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        update_point<<<pointsPerSide * pointsPerSide, pointsPerSide>>>(p_d, ps_d, adjust);
+        
+        update_spring<<<ppsSquare, pointsPerSide>>>(p_d, s_d, adjust);
+        cudaDeviceSynchronize();
+        update_point<<<springBlocks, springThreads>>>(p_d, p_d, ps_d);
+        cudaDeviceSynchronize();
  
         t += dt;
     }
