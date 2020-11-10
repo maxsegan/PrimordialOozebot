@@ -4,6 +4,6 @@ __global__ void cuda_hello(){
 
 int main() {
     cuda_hello<<<1,1>>>();
-    prinf("testing hello from cpu")
+    prinf("testing hello from cpu on my laptop")
     return 0;
 }
