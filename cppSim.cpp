@@ -65,7 +65,7 @@ int main() {
                             continue;
                         }
                         for (int z1 = z; z1 < z + 2; z1++) {
-                            if (z1 == 11 || (x1 == x && y1 == y && z1 == z)) {
+                            if (z1 == 10 || (x1 == x && y1 == y && z1 == z)) {
                                 continue;
                             }
                             Point p2 = cache[x1][y1][z1];
