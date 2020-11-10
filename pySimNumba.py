@@ -33,7 +33,8 @@ class Spring:
 def main():
     points, springs = genPointsAndSprings()
 
-    friction = 0.5
+    staticFriction = 0.8
+    kineticFriction = 0.5
     dt = 0.0000005
     dampening = 1 - (dt * 1000)
     gravity = -9.81
@@ -43,20 +44,21 @@ def main():
     print("time multiplier: ",  limit / dt)
 
     start_time = time.time()
-    sim(limit, friction, dt, dampening, gravity, points, springs)
+    sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, springs)
     print("--- %s seconds ---" % (time.time() - start_time))
     
     limit = 0.01
+    print("time multiplier: ",  limit / dt)
     start_time = time.time()
-    sim(limit, friction, dt, dampening, gravity, points, springs)
+    sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, springs)
     print("--- %s seconds ---" % (time.time() - start_time))
 
     start_time = time.time()
-    sim(limit, friction, dt, dampening, gravity, points, springs)
+    sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, springs)
     print("--- %s seconds ---" % (time.time() - start_time))
 
 @jit(nopython=True)
-def sim(limit, friction, dt, dampening, gravity, points, springs):
+def sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, springs):
     t = 0.0
     while t < limit:
         adjust = 1 + math.sin(t * kOscillationFrequency) * 0.1
@@ -96,14 +98,15 @@ def sim(limit, friction, dt, dampening, gravity, points, springs):
             if p[1] < 0:
                 fy += -kGround * p[1]
                 fh = math.sqrt(fx**2 + fz**2)
-                if fh < abs(fy * friction):
+                if fh < abs(fy * staticFriction):
                     fx = 0
                     p[3] = 0
                     fz = 0
                     p[5] = 0
                 else:
-                    fx = fx - fy * friction
-                    fz = fz - fy * friction
+                    fyfric = fy * kineticFriction
+                    fx = fx - fyfric
+                    fz = fz - fyfric
             ax = fx / mass
             ay = fy / mass + gravity
             az = fz / mass

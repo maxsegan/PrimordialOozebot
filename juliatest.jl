@@ -81,7 +81,8 @@ function main()
             end
         end
     end
-    friction::Float64 = 0.5
+    staticFriction::Float64 = 0.5
+    kineticFriction::Float64 = 0.8
     dt::Float64 = 0.0000005
     dampening::Float64 = 1 - (dt * 1000)
     gravity::Float64 = -9.81
@@ -130,14 +131,15 @@ function main()
                 if p.y < 0
                     fy += -kGround * p.y
                     fh::Float64 = sqrt(abs2(fx) + abs2(fz))
-                    if fh < abs(fy * friction)
+                    if fh < abs(fy * staticFriction)
                         fx = 0
                         p.vx = 0
                         fz = 0
                         p.vz = 0
                     else
-                        fx = fx - fy * friction
-                        fz = fz - fy * friction
+                        fyfric = fy * kineticFriction
+                        fx = fx - fyfric
+                        fz = fz - fyfric
                     end
                 end
                 ax = fx / mass

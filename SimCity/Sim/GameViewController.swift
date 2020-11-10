@@ -13,9 +13,9 @@ let kSpring: Double = 10000.0
 let kGround: Double = 100000.0
 let kOscillationFrequency: Double = 10000//100000
 let kUseTetrahedron = false
-let kUseThousand = false
 let kDropHeight: Double = 0.2
-let kNoRender = false
+let kUseThousand = true
+let kNoRender = true
 
 class GameViewController: NSViewController {
   let scene = SCNScene()
@@ -111,7 +111,6 @@ struct Spring {
   let p1: Int // Index of first point
   let p2: Int // Index of second point
   let l0: Double // meters
-  var currentl: Double? // meters
 }
 
 func gen() -> (points: [Point], springs: [Spring]) {
@@ -227,7 +226,7 @@ func gen() -> (points: [Point], springs: [Spring]) {
             if p != nil {
               let p2 = p!
               let length = (pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2)).squareRoot()
-              springs.append(Spring(k: kSpring, p1: p1index, p2: p2index, l0: length, currentl: length))
+              springs.append(Spring(k: kSpring, p1: p1index, p2: p2index, l0: length))
             }
           }
         }
@@ -239,7 +238,7 @@ func gen() -> (points: [Point], springs: [Spring]) {
         let p1 = points[i]
         let p2 = points[j]
         let length = (pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2)).squareRoot()
-        springs.append(Spring(k: kSpring, p1: i, p2: j, l0: length, currentl: length))
+        springs.append(Spring(k: kSpring, p1: i, p2: j, l0: length))
       }
     }
   }
@@ -248,7 +247,8 @@ func gen() -> (points: [Point], springs: [Spring]) {
 
 func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Double {
   var t = time
-  let friction = 0.5
+  let staticFriction = 0.8
+  let kineticFriction = 0.5
   let dt = 0.0000005
   let dampening = 1 - (dt * 1000)
   let gravity = -9.81
@@ -263,60 +263,76 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
   while t < limit {
     let adjust = 1 + sin(t * kOscillationFrequency) * 0.1
     for l in lines {
-      let p1x = points[l.p1].x
-      let p1y = points[l.p1].y
-      let p1z = points[l.p1].z
-      let p2x = points[l.p2].x
-      let p2y = points[l.p2].y
-      let p2z = points[l.p2].z
+      let p1ind = l.p1
+      let p2ind = l.p2
+
+      let p1x = points[p1ind].x
+      let p1y = points[p1ind].y
+      let p1z = points[p1ind].z
+      let p2x = points[p2ind].x
+      let p2y = points[p2ind].y
+      let p2z = points[p2ind].z
       let dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2))
 
       // negative if repelling, positive if attracting
       let f = l.k * (dist - (l.l0 * adjust))
       // distribute force across the axes
       let dx = f * (p1x - p2x) / dist
-      points[l.p1].fx -= dx
-      points[l.p2].fx += dx
+      points[p1ind].fx -= dx
+      points[p2ind].fx += dx
 
       let dy = f * (p1y - p2y) / dist
-      points[l.p1].fy -= dy
-      points[l.p2].fy += dy
+      points[p1ind].fy -= dy
+      points[p2ind].fy += dy
 
       let dz = f * (p1z - p2z) / dist
-      points[l.p1].fz -= dz
-      points[l.p2].fz += dz
+      points[p1ind].fz -= dz
+      points[p2ind].fz += dz
     }
     for i in 0..<points.count {
-      var fy = points[i].fy
-      var fx = points[i].fx
-      var fz = points[i].fz
+      var p = points[i]
+        
+      let mass = p.mass
+      var fy = p.fy + gravity * mass
+      var fx = p.fx
+      var fz = p.fz
+      let y = p.y
+      var vx = p.vx
+      var vy = p.vy
+      var vz = p.vz
 
-      if points[i].y < 0 {
-        fy += -kGround * points[i].y
+      if y <= 0 {
+        fy += -kGround * y
         let fh = sqrt(pow(fx, 2) + pow(fz, 2))
-        if fh < abs(fy * friction) {
+        let fyfric = abs(fy * staticFriction)
+        if fh < fyfric {
           fx = 0
-          points[i].vx = 0
+          p.vx = 0
           fz = 0
-          points[i].vz = 0
+          p.vz = 0
         } else {
-          fx = fx - fy * friction
-          fz = fz - fy * friction
+          let fystatic = abs(fy * kineticFriction)
+          fx = fx - fx / fh * fystatic
+          fz = fz - fz / fh * fystatic
         }
       }
-      let ax = fx / points[i].mass
-      let ay = fy / points[i].mass + gravity
-      let az = fz / points[i].mass
+      let ax = fx / mass
+      let ay = fy / mass
+      let az = fz / mass
       // reset the force cache
-      points[i].fx = 0
-      points[i].fy = 0
-      points[i].fz = 0
-      points[i].vx = (ax * dt + points[i].vx) * dampening
-      points[i].vy = (ay * dt + points[i].vy) * dampening
-      points[i].vz = (az * dt + points[i].vz) * dampening
-      points[i].x += points[i].vx
-      points[i].y += points[i].vy
-      points[i].z += points[i].vz
+      p.fx = 0
+      p.fy = 0
+      p.fz = 0
+      vx = (ax * dt + vx) * dampening
+      p.vx = vx
+      vy = (ay * dt + vy) * dampening
+      p.vy = vy
+      vz = (az * dt + vz) * dampening
+      p.vz = vz
+      p.x += vx
+      p.y += vy
+      p.z += vz
+      points[i] = p
     }
     t += dt
   }
@@ -327,6 +343,9 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
 }
 
 func draw(points: [Point], lines: [Spring], scene: SCNScene) {
+  if kNoRender {
+    return
+  }
   let box = SCNNode()
   box.name = "box"
   for spring in lines {
@@ -354,6 +373,9 @@ func draw(points: [Point], lines: [Spring], scene: SCNScene) {
 }
 
 func redraw(points: [Point], lines: [Spring], scene: SCNScene) {
+  if kNoRender {
+    return
+  }
   let box = scene.rootNode.childNode(withName: "box", recursively: true)
   for spring in lines {
     let p1 = points[spring.p1]
