@@ -31,14 +31,14 @@ void genPointsAndSprings(
 	std::vector<Spring> &springs,
 	std::vector<std::vector<Spring>> &pointSprings);
 
-const double staticFriction = 0.8;
-const double kineticFriction = 0.5;
+const double staticFriction = 0.5;
+const double kineticFriction = 0.3;
 const double dt = 0.0000005;
 const double dampening = 1 - (dt * 1000);
 const double gravity = -9.81;
 const double kSpring = 10000.0;
 const double kGround = 100000.0;
-const double kOscillationFrequency = 10000;//100000
+const double kOscillationFrequency = 0;//10000;//100000
 const double kDropHeight = 0.2;
 const int pointsPerSide = 10;
 
@@ -101,8 +101,10 @@ int main() {
         for (int i = 0; i < springs.size(); i++) {
             Spring l = springs[i];
 
-            Point p1 = points[l.p1];
-            Point p2 = points[l.p2];
+            int p1index = l.p1;
+            int p2index = l.p2;
+            Point p1 = points[p1index];
+            Point p2 = points[p2index];
 
             double p1x = p1.x;
             double p1y = p1.y;
@@ -116,18 +118,16 @@ int main() {
             double f = l.k * (dist - (l.l0 * adjust));
             // distribute force across the axes
             double dx = f * (p1x - p2x) / dist;
-            p1.fx -= dx;
-            p2.fx += dx;
+            points[p1index].fx -= dx;
+            points[p2index].fx += dx;
 
             double dy = f * (p1y - p2y) / dist;
-            p1.fy -= dy;
-            p2.fy += dy;
+            points[p1index].fy -= dy;
+            points[p2index].fy += dy;
 
             double dz = f * (p1z - p2z) / dist;
-            p1.fz -= dz;
-            p2.fz += dz;
-            points[l.p1] = p1
-            points[l.p2] = p2
+            points[p1index].fz -= dz;
+            points[p2index].fz += dz;
         }
         for (int i = 0; i < points.size(); i++) {
             Point p = points[i];
@@ -142,7 +142,6 @@ int main() {
             double vz = p.vz;
 
             if (y <= 0) {
-                fy += -kGround * y;
                 double fh = sqrt(pow(fx, 2) + pow(fz, 2));
                 double fyfric = abs(fy * staticFriction);
                 if (fh < fyfric) {
@@ -153,10 +152,9 @@ int main() {
                     fx = fx - fx / fh * fykinetic;
                     fz = fz - fz / fh * fykinetic;
                 }
+                fy += -kGround * y;
             }
             double ax = fx / mass;
-            if (i == 0 && ax != 0)
-            printf("%f\n", ax);
             double ay = fy / mass;
             double az = fz / mass;
             // reset the force cache
@@ -172,8 +170,7 @@ int main() {
             p.x += vx;
             p.y += vy;
             p.z += vz;
-            points[i] = p
-            //printf("%f\n", vy);
+            points[i] = p;
         }
         t += dt;
     }

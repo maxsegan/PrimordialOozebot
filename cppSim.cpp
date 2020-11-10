@@ -24,19 +24,25 @@ struct Spring {
   double l0; // meters
 };
 
-int main() {
-    double kSpring = 10000.0;
-    double kGround = 100000.0;
-    double kOscillationFrequency = 10000;//100000
-    double kDropHeight = 0.2;
+const double kSpring = 10000.0;
+const double kGround = 100000.0;
+const double kOscillationFrequency = 0;//10000;//100000
+const double kDropHeight = 0.2;
+const int kNumPerSide = 10;
+const double staticFriction = 0.5;
+const double kineticFriction = 0.3;
+const double dt = 0.0000005;
+const double dampening = 1 - (dt * 1000);
+const double gravity = -9.81;
 
+int main() {
     std::vector<Point> points;
     std::vector<Spring> springs;
     std::map<int, std::map<int, std::map<int, Point>>> cache;
 
-    for (int x = 0; x < 10; x++) {
-        for (int y = 0; y < 10; y++) {
-            for (int z = 0; z < 10; z++) {
+    for (int x = 0; x < kNumPerSide; x++) {
+        for (int y = 0; y < kNumPerSide; y++) {
+            for (int z = 0; z < kNumPerSide; z++) {
                 // (0,0,0) or (0.1,0.1,0.1) and all combinations
                 Point p = {x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0, 0, 0, 0.1, 0, 0, 0};
                 points.push_back(p);
@@ -51,25 +57,25 @@ int main() {
         }
     }
     // Create the springs
-    for (int x = 0; x < 10; x++) {
-        for (int y = 0; y < 10; y++) {
-            for (int z = 0; z < 10; z++) {
+    for (int x = 0; x < kNumPerSide; x++) {
+        for (int y = 0; y < kNumPerSide; y++) {
+            for (int z = 0; z < kNumPerSide; z++) {
                 Point p1 = cache[x][y][z];
-                int p1index = z + 10 * y + 100 * x;
+                int p1index = z + kNumPerSide * y + kNumPerSide * kNumPerSide * x;
                 for (int x1 = x; x1 < x + 2; x1++) {
-                    if (x1 == 10) {
+                    if (x1 == kNumPerSide) {
                         continue;
                     }
                     for (int y1 = y; y1 < y + 2; y1++) {
-                        if (y1 == 10) {
+                        if (y1 == kNumPerSide) {
                             continue;
                         }
                         for (int z1 = z; z1 < z + 2; z1++) {
-                            if (z1 == 10 || (x1 == x && y1 == y && z1 == z)) {
+                            if (z1 == kNumPerSide || (x1 == x && y1 == y && z1 == z)) {
                                 continue;
                             }
                             Point p2 = cache[x1][y1][z1];
-                            int p2index = z1 + 10 * y1 + 100 * x1;
+                            int p2index = z1 + kNumPerSide * y1 + kNumPerSide * kNumPerSide * x1;
                             double length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
                             Spring s = {kSpring, p1index, p2index, length};
                             springs.push_back(s);
@@ -79,16 +85,10 @@ int main() {
             }
         }
     }
-
-    double t = 0;
-    double staticFriction = 0.8;
-    double kineticFriction = 0.5;
-    double dt = 0.0000005;
-    double dampening = 1 - (dt * 1000);
-    double gravity = -9.81;
-    // 60 fps - 0.000166
-    double limit = 0.1;
   
+    // 60 fps - 0.000166
+    const double limit = 0.1;
+    double t = 0;
     int y = round(limit / dt * springs.size());
     printf("num springs evaluated: %i\n", y);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
@@ -98,8 +98,10 @@ int main() {
         for (int i = 0; i < springs.size(); i++) {
             Spring l = springs[i];
 
-            Point p1 = points[l.p1];
-            Point p2 = points[l.p2];
+            int p1index = l.p1;
+            int p2index = l.p2;
+            Point p1 = points[p1index];
+            Point p2 = points[p2index];
 
             double p1x = p1.x;
             double p1y = p1.y;
@@ -113,16 +115,16 @@ int main() {
             double f = l.k * (dist - (l.l0 * adjust));
             // distribute force across the axes
             double dx = f * (p1x - p2x) / dist;
-            p1.fx -= dx;
-            p2.fx += dx;
+            points[p1index].fx -= dx;
+            points[p2index].fx += dx;
 
             double dy = f * (p1y - p2y) / dist;
-            p1.fy -= dy;
-            p2.fy += dy;
+            points[p1index].fy -= dy;
+            points[p2index].fy += dy;
 
             double dz = f * (p1z - p2z) / dist;
-            p1.fz -= dz;
-            p2.fz += dz;
+            points[p1index].fz -= dz;
+            points[p2index].fz += dz;
         }
         for (int i = 0; i < points.size(); i++) {
             Point p = points[i];
@@ -137,19 +139,17 @@ int main() {
             double vz = p.vz;
 
             if (y <= 0) {
-                fy += -kGround * y;
                 double fh = sqrt(pow(fx, 2) + pow(fz, 2));
                 double fyfric = abs(fy * staticFriction);
                 if (fh < fyfric) {
                     fx = 0;
-                    p.vx = 0;
                     fz = 0;
-                    p.vz = 0;
                 } else {
-                    double fystatic = abs(fy * kineticFriction);
-                    fx = fx - fx / fh * fystatic;
-                    fz = fz - fz / fh * fystatic;
+                    double fykinetic = abs(fy * kineticFriction);
+                    fx = fx - fx / fh * fykinetic;
+                    fz = fz - fz / fh * fykinetic;
                 }
+                fy += -kGround * y;
             }
             double ax = fx / mass;
             double ay = fy / mass;
@@ -167,6 +167,7 @@ int main() {
             p.x += vx;
             p.y += vy;
             p.z += vz;
+            points[i] = p;
         }
         t += dt;
     }

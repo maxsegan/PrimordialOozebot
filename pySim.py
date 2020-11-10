@@ -3,7 +3,7 @@ import math
 
 kSpring = 10000.0
 kGround = 100000.0
-kOscillationFrequency = 10000#100000
+kOscillationFrequency = 0#10000#100000
 kDropHeight = 0.2
 
 class Point:
@@ -30,8 +30,8 @@ class Spring:
 def main():
     points, springs = genPointsAndSprings()
 
-    staticFriction = 0.8
-    kineticFriction = 0.5
+    staticFriction = 0.5
+    kineticFriction = 0.3
     dt = 0.0000005
     dampening = 1 - (dt * 1000)
     gravity = -9.81

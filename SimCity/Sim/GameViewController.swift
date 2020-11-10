@@ -11,7 +11,7 @@ import QuartzCore
 
 let kSpring: Double = 10000.0
 let kGround: Double = 100000.0
-let kOscillationFrequency: Double = 10000//100000
+let kOscillationFrequency: Double = 0//10000//100000
 let kUseTetrahedron = false
 let kDropHeight: Double = 0.2
 let kUseThousand = true
@@ -247,8 +247,8 @@ func gen() -> (points: [Point], springs: [Spring]) {
 
 func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Double {
   var t = time
-  let staticFriction = 0.8
-  let kineticFriction = 0.5
+  let staticFriction = 0.5
+  let kineticFriction = 0.3
   let dt = 0.0000005
   let dampening = 1 - (dt * 1000)
   let gravity = -9.81
@@ -302,19 +302,17 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
       var vz = p.vz
 
       if y <= 0 {
-        fy += -kGround * y
         let fh = sqrt(pow(fx, 2) + pow(fz, 2))
         let fyfric = abs(fy * staticFriction)
         if fh < fyfric {
           fx = 0
-          p.vx = 0
           fz = 0
-          p.vz = 0
         } else {
-          let fystatic = abs(fy * kineticFriction)
-          fx = fx - fx / fh * fystatic
-          fz = fz - fz / fh * fystatic
+          let fykinetic = abs(fy * kineticFriction)
+          fx = fx - fx / fh * fykinetic
+          fz = fz - fz / fh * fykinetic
         }
+        fy += -kGround * y
       }
       let ax = fx / mass
       let ay = fy / mass

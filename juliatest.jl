@@ -25,9 +25,7 @@ end
 function main()
     kSpring::Float64 = 10000.0
     kGround::Float64 = 100000.0
-    kOscillationFrequency::Float64 = 10000.0
-    kUseTetrahedron::Bool = false
-    kUseThousand::Bool = false
+    kOscillationFrequency::Float64 = 0#10000.0
     kDropHeight::Float64 = 0.2
 
     t::Float64 = 0.0
@@ -82,7 +80,7 @@ function main()
         end
     end
     staticFriction::Float64 = 0.5
-    kineticFriction::Float64 = 0.8
+    kineticFriction::Float64 = 0.3
     dt::Float64 = 0.0000005
     dampening::Float64 = 1 - (dt * 1000)
     gravity::Float64 = -9.81
