@@ -192,10 +192,9 @@ int main() {
 }
 
 void genPointsAndSprings(
-	std::vector<Point> &points,
-	std::vector<Spring> &springs,
-	std::vector<int> &pointSprings) {
-    std::map<int, std::map<int, std::map<int, Point>>> cache;
+    std::vector<Point> &points,
+    std::vector<Spring> &springs,
+    std::vector<int> &pointSprings) {
 
     for (int x = 0; x < pointsPerSide; x++) {
         for (int y = 0; y < pointsPerSide; y++) {
@@ -206,13 +205,6 @@ void genPointsAndSprings(
                 float pz = z / 10.0;
                 Point p = {px, py, pz, 0, 0, 0, 0.1, 0};
                 points.push_back(p);
-                if (cache.count(x) == 0) {
-                    cache[x] = {};
-                }
-                if (cache[x].count(y) == 0) {
-                    cache[x][y] = {};
-                }
-                cache[x][y][z] = p;
             }
         }
     }
@@ -225,7 +217,7 @@ void genPointsAndSprings(
             for (int z = 0; z < pointsPerSide; z++) {
                 int p1index = z + pointsPerSide * y + ppsSquare * x;
 
-                Point p1 = cache[x][y][z];
+                Point p1 = points[p1index];
                 for (int x1 = x - 1; x1 < x + 2; x1++) {
                     if (x1 == pointsPerSide || x1 < 0) {
                         continue;
@@ -248,7 +240,7 @@ void genPointsAndSprings(
                             connected[p1index].push_back(p2index);
                             connected[p2index].push_back(p1index);
 
-                            Point p2 = cache[x1][y1][z1];
+                            Point p2 = points[p2index];
                             float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
                             Spring s = {kSpring, p1index, p2index, length, 0, 0, 0};
                             int springIndex = springs.size();
