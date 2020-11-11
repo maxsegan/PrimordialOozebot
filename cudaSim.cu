@@ -44,7 +44,7 @@ void genPointsAndSprings(
 #define kGround 100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 50;
+const int pointsPerSide = 40;
 
 __global__ void update_spring(Point *points, Spring *springs, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
