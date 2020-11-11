@@ -51,26 +51,37 @@ function main()
         end
     end
 
+    connected::Dict{Int64, Array{Int64}} = Dict()
     #Create the springs
     for x = 1:10
         for y = 1:10
             for z = 1:10
-                p1::Point = cache[x][y][z]
                 p1index::Int = z + 10 * (y - 1) + 100 * (x - 1)
-                for x1 = x:(x+1)
-                    if x1 == 11
+                if !haskey(connected, p1index)
+                    connected[p1index] = []
+                end
+                p1::Point = cache[x][y][z]
+                for x1 = (x - 1):(x+1)
+                    if x1 == 11 || x1 <= 0
                         continue
                     end
-                    for y1 = y:(y+1)
-                        if y1 == 11
+                    for y1 = (y - 1):(y+1)
+                        if y1 == 11 || y1 <= 0
                             continue
                         end
                         for z1 = z:(z+1)
-                            if z1 == 11 || (x1 == x && y1 == y && z1 == z)
+                            if z1 == 11 || z1 <= 0 || (x1 == x && y1 == y && z1 == z)
                                 continue
                             end
-                            p2::Point = cache[x1][y1][z1]
                             p2index::Int = z1 + 10 * (y1 - 1) + 100 * (x1 - 1)
+                            if !haskey(connected, p2index)
+                                connected[p2index] = []
+                            elseif p2index in connected[p1index]
+                                continue
+                            end
+                            push!(connected[p1index], p2index)
+                            push!(connected[p2index], p1index)
+                            p2::Point = cache[x1][y1][z1]
                             length::Float64 = sqrt(abs2(p1.x - p2.x) + abs2(p1.y - p2.y) + abs2(p1.z - p2.z))
                             push!(springs, Spring(kSpring, p1index, p2index, length, length))
                         end
