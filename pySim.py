@@ -7,6 +7,7 @@ kSpring = 10000.0
 kGround = 100000.0
 kOscillationFrequency = 10000#100000
 kDropHeight = .2
+kPointsPerSide = 2
 
 times = []
 y_val = []
@@ -16,7 +17,6 @@ potential = []
 
 ke = 0
 pe = 0
-
 
 class Point:
     def __init__(self, x, y, z, vx, vy, vz, mass, fx, fy, fz):
@@ -175,9 +175,9 @@ def genPointsAndSprings():
     springs = []
 
     # Create the points
-    for x in range(10):
-        for y in range(10):
-            for z in range(10):
+    for x in range(kPointsPerSide):
+        for y in range(kPointsPerSide):
+            for z in range(kPointsPerSide):
                 # (0,0,0) or (0.1,0.1,0.1) and all combinations
                 p = Point(x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0, 0, 0, 0.1, 0, 0, 0)
                 points.append(p)
@@ -187,25 +187,36 @@ def genPointsAndSprings():
                     cache[x][y] = {}
                 cache[x][y][z] = p
 
+    ppsSquared = kPointsPerSide ** 2
+    connected = {}
     #Create the springs
-    for x in range(10):
-        for y in range(10):
-            for z in range(10):
+    for x in range(kPointsPerSide):
+        for y in range(kPointsPerSide):
+            for z in range(kPointsPerSide):
+                p1index = z + kPointsPerSide * y + ppsSquared * x
+                if not p1index in connected:
+                    connected[p1index] = []
                 p1 = cache[x][y][z]
-                p1index = z + 10 * y + 100 * x
-                for x1 in range(x, x+2):
-                    if x1 == 10:
+                for x1 in range(x - 1, x+2):
+                    if x1 == kPointsPerSide or x1 < 0:
                         continue
-                    for y1 in range(y, y+2):
-                        if y1 == 10:
+                    for y1 in range(y - 1, y+2):
+                        if y1 == kPointsPerSide or y1 < 0:
                             continue
                         for z1 in range(z, z+2):
-                            if z1 == 10 or (x1 == x and y1 == y and z1 == z):
+                            if z1 == kPointsPerSide or z1 < 0 or (x1 == x and y1 == y and z1 == z):
                                 continue
+                            p2index = z1 + kPointsPerSide * y1 + ppsSquared * x1
+                            if not p2index in connected:
+                                connected[p2index] = []
+                            elif p2index in connected[p1index]:
+                                continue
+                            connected[p1index].append(p2index)
+                            connected[p2index].append(p1index)
                             p2 = cache[x1][y1][z1]
-                            p2index = z1 + 10 * y1 + 100 * x1
                             length = math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
                             springs.append(Spring(kSpring, p1index, p2index, length, length))
+
     return points, springs
 
 if __name__ == "__main__":
