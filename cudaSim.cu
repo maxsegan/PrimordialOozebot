@@ -38,13 +38,13 @@ void genPointsAndSprings(
 #define staticFriction 0.5
 #define kineticFriction 0.3
 #define dt 0.0001
-#define dampening 1 - (0.0005)
+#define dampening 0.9995
 #define gravity -9.81
 #define kSpring 500.0
 #define kGround 100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 100;
+const int pointsPerSide = 40;
 
 __global__ void update_spring(Point *points, Spring *springs, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -151,7 +151,7 @@ int main() {
 
     double t = 0;
     // 60 fps - 0.000166
-    double limit = 1;
+    double limit = 5;
     int ppsSquare = pointsPerSide * pointsPerSide;
   
   	int numSprings = (int)springs.size();
@@ -163,7 +163,6 @@ int main() {
 
     while (t < limit) {
         float adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        
         update_spring<<<springBlocks, springThreads>>>(p_d, s_d, adjust, numSprings);
         update_point<<<ppsSquare, pointsPerSide>>>(p_d, s_d, ps_d);
         t += dt;
@@ -195,7 +194,6 @@ void genPointsAndSprings(
 	std::vector<Point> &points,
 	std::vector<Spring> &springs,
 	std::vector<int> &pointSprings) {
-    std::map<int, std::map<int, std::map<int, Point>>> cache;
 
     for (int x = 0; x < pointsPerSide; x++) {
         for (int y = 0; y < pointsPerSide; y++) {
@@ -206,13 +204,6 @@ void genPointsAndSprings(
                 float pz = z / 10.0;
                 Point p = {px, py, pz, 0, 0, 0, 0.1, 0};
                 points.push_back(p);
-                if (cache.count(x) == 0) {
-                    cache[x] = {};
-                }
-                if (cache[x].count(y) == 0) {
-                    cache[x][y] = {};
-                }
-                cache[x][y][z] = p;
             }
         }
     }
@@ -225,7 +216,7 @@ void genPointsAndSprings(
             for (int z = 0; z < pointsPerSide; z++) {
                 int p1index = z + pointsPerSide * y + ppsSquare * x;
 
-                Point p1 = cache[x][y][z];
+                Point p1 = points[p1index];
                 for (int x1 = x - 1; x1 < x + 2; x1++) {
                     if (x1 == pointsPerSide || x1 < 0) {
                         continue;
@@ -248,7 +239,7 @@ void genPointsAndSprings(
                             connected[p1index].push_back(p2index);
                             connected[p2index].push_back(p1index);
 
-                            Point p2 = cache[x1][y1][z1];
+                            Point p2 = points[p2index];
                             float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
                             Spring s = {kSpring, p1index, p2index, length, 0, 0, 0};
                             int springIndex = springs.size();
