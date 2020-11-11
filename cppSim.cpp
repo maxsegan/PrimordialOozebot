@@ -100,7 +100,7 @@ int main() {
     }
   
     // 60 fps - 0.000166
-    const double limit = 0.1;
+    const double limit = 5;
     double t = 0;
     long long int numSprings = springs.size();
     long long int y = (long long int)(limit / dt * numSprings);
@@ -189,6 +189,7 @@ int main() {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
+    printf("p[0].y = %f\n", points[0].y);
 
     return 0;
 }

@@ -350,6 +350,7 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
   }
   if kNoRender {
     print("num springs evaluated: ", Double(lines.count) * 5 / dt, CACurrentMediaTime() - realTime)
+    print(points[0].y)
   }
   return t
 }
