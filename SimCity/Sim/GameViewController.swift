@@ -14,8 +14,8 @@ let kGround: Double = 100000.0
 let kOscillationFrequency: Double = 0//10000//100000
 let kUseTetrahedron = false
 let kDropHeight: Double = 0.2
-let kUseThousand = false
-let kNoRender = false
+let kUseThousand = true
+let kNoRender = true
 
 class GameViewController: NSViewController {
   let scene = SCNScene()
@@ -270,7 +270,7 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
   let limit: Double
   let realTime = CACurrentMediaTime()
   if kNoRender {
-    limit = t + 0.1
+    limit = t + 5
   } else {
     limit = t + 0.000166
   }
@@ -349,7 +349,7 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
     t += dt
   }
   if kNoRender {
-    print("num springs evaluated: ", Double(lines.count) * 0.1 / dt, CACurrentMediaTime() - realTime)
+    print("num springs evaluated: ", Double(lines.count) * 5 / dt, CACurrentMediaTime() - realTime)
   }
   return t
 }
