@@ -44,7 +44,7 @@ void genPointsAndSprings(
 #define kGround 100000.0
 const double kOscillationFrequency = 0;
 const double kDropHeight = 0.2;
-const int pointsPerSide = 40;
+const int pointsPerSide = 45;
 
 __global__ void update_spring(Point *points, Spring *springs, double adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -165,12 +165,12 @@ int main() {
         double adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
         
         update_spring<<<springBlocks, springThreads>>>(p_d, s_d, adjust, numSprings);
-        cudaDeviceSynchronize();	
         update_point<<<ppsSquare, pointsPerSide>>>(p_d, s_d, ps_d);
-        cudaDeviceSynchronize();
- 
         t += dt;
     }
+
+    cudaDeviceSynchronize();
+ 
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
@@ -178,9 +178,10 @@ int main() {
 
     Point *ps = (Point *)malloc(points.size() * sizeof(Point));
     cudaMemcpy(ps, p_d, points.size() * sizeof(Point), cudaMemcpyDeviceToHost);
-    //for (int i = 0; i < points.size(); i++) {
-    //	printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
-    //}
+    for (int i = 0; i < points.size(); i++) {
+    	printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
+    	break;
+    }
     
     cudaFree(p_d);
     cudaFree(s_d);
