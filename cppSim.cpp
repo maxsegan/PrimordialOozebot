@@ -39,7 +39,6 @@ const double gravity = -9.81;
 int main() {
     std::vector<Point> points;
     std::vector<Spring> springs;
-    std::map<int, std::map<int, std::map<int, Point>>> cache;
 
     for (int x = 0; x < kNumPerSide; x++) {
         for (int y = 0; y < kNumPerSide; y++) {
@@ -47,13 +46,6 @@ int main() {
                 // (0,0,0) or (0.1,0.1,0.1) and all combinations
                 Point p = {x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0, 0, 0, 0.1, 0, 0, 0};
                 points.push_back(p);
-                if (cache.count(x) == 0) {
-                    cache[x] = {};
-                }
-                if (cache[x].count(y) == 0) {
-                    cache[x][y] = {};
-                }
-                cache[x][y][z] = p;
             }
         }
     }
@@ -65,7 +57,7 @@ int main() {
             for (int z = 0; z < kNumPerSide; z++) {
                 int p1index = z + kNumPerSide * y + kNumPerSide * kNumPerSide * x;
 
-                Point p1 = cache[x][y][z];
+                Point p1 = points[p1index];
                 for (int x1 = x - 1; x1 < x + 2; x1++) {
                     if (x1 == kNumPerSide || x1 < 0) {
                         continue;
@@ -88,7 +80,7 @@ int main() {
                             connected[p1index].push_back(p2index);
                             connected[p2index].push_back(p1index);
 
-                            Point p2 = cache[x1][y1][z1];
+                            Point p2 = points[p2index];
                             double length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
                             Spring s = {kSpring, p1index, p2index, length};
                             springs.push_back(s);
@@ -189,7 +181,7 @@ int main() {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
-    printf("p[0].y = %f\n", points[0].y);
+    printf("p[0].y = %f, x = %f, z = %f\n", points[0].y, points[0].x, points[0].z);
 
     return 0;
 }
