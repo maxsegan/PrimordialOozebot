@@ -204,10 +204,7 @@ void genPointsAndSprings(
                 float px = x / 10.0;
                 float py = y / 10.0 + kDropHeight;
                 float pz = z / 10.0;
-                Point p = {px,
-                py,
-                pz,
-                0, 0, 0, 0.1, 0};
+                Point p = {px, py, pz, 0, 0, 0, 0.1, 0};
                 points.push_back(p);
                 if (cache.count(x) == 0) {
                     cache[x] = {};
@@ -262,6 +259,7 @@ void genPointsAndSprings(
                             pointSprings[ppsIndex2] = springIndex;
                             points[p1index].numSprings += 1;
                             points[p2index].numSprings += 1;
+                            p1.numSprings += 1; // this is a reference so also increment here
                         }
                     }
                 }

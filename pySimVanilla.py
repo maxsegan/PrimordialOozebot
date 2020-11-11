@@ -5,6 +5,7 @@ kSpring = 500.0
 kGround = 100000.0
 kOscillationFrequency = 0#10000#100000
 kDropHeight = 0.2
+kNumPerSide = 10
 
 class Point:
     def __init__(self, x, y, z, vx, vy, vz, mass, fx, fy, fz):
@@ -36,7 +37,7 @@ def main():
     dampening = 1 - (dt * 5)
     gravity = -9.81
 
-    limit = 0.01
+    limit = 0.1
     print("num springs evaluated: ", len(springs))
     print("time multiplier: ",  limit / dt)
 
@@ -115,9 +116,9 @@ def genPointsAndSprings():
     springs = []
 
     # Create the points
-    for x in range(10):
-        for y in range(10):
-            for z in range(10):
+    for x in range(kNumPerSide):
+        for y in range(kNumPerSide):
+            for z in range(kNumPerSide):
                 # (0,0,0) or (0.1,0.1,0.1) and all combinations
                 p = Point(x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0, 0, 0, 0.1, 0, 0, 0)
                 points.append(p)
@@ -129,25 +130,25 @@ def genPointsAndSprings():
 
     connected = {}
     #Create the springs
-    for x in range(10):
-        for y in range(10):
-            for z in range(10):
-                p1index = z + 10 * y + 100 * x
+    for x in range(kNumPerSide):
+        for y in range(kNumPerSide):
+            for z in range(kNumPerSide):
+                p1index = z + kNumPerSide * y + kNumPerSide * kNumPerSide * x
                 if not p1index in connected:
                     connected[p1index] = []
 
                 p1 = cache[x][y][z]
 
                 for x1 in range(x - 1, x+2):
-                    if x1 == 10 or x1 < 0:
+                    if x1 == kNumPerSide or x1 < 0:
                         continue
                     for y1 in range(y - 1, y+2):
-                        if y1 == 10 or y1 < 0:
+                        if y1 == kNumPerSide or y1 < 0:
                             continue
                         for z1 in range(z - 1, z+2):
-                            if z1 == 10 or z1 < 0 or (x1 == x and y1 == y and z1 == z):
+                            if z1 == kNumPerSide or z1 < 0 or (x1 == x and y1 == y and z1 == z):
                                 continue
-                            p2index = z1 + 10 * y1 + 100 * x1
+                            p2index = z1 + kNumPerSide * y1 + kNumPerSide * kNumPerSide * x1
                             if not p2index in connected:
                                 connected[p2index] = []
                             elif p2index in connected[p1index]:
