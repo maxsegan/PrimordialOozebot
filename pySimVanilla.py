@@ -1,7 +1,7 @@
 import time
 import math
 
-kSpring = 10000.0
+kSpring = 500.0
 kGround = 100000.0
 kOscillationFrequency = 0#10000#100000
 kDropHeight = 0.2
@@ -32,13 +32,13 @@ def main():
 
     staticFriction = 0.5
     kineticFriction = 0.3
-    dt = 0.0000005
-    dampening = 1 - (dt * 1000)
+    dt = 0.0001
+    dampening = 1 - (dt * 5)
     gravity = -9.81
 
-    limit = 0.0001
+    limit = 0.01
     print("num springs evaluated: ", len(springs))
-    print("time multiplier: ",  0.0001 / dt)
+    print("time multiplier: ",  limit / dt)
 
     start_time = time.time()
     sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, springs)
@@ -104,9 +104,9 @@ def sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, 
             p.vx = (ax * dt + p.vx) * dampening
             p.vy = (ay * dt + p.vy) * dampening
             p.vz = (az * dt + p.vz) * dampening
-            p.x += p.vx
-            p.y += p.vy
-            p.z += p.vz
+            p.x += p.vx * dt
+            p.y += p.vy * dt
+            p.z += p.vz * dt
         t += dt
 
 def genPointsAndSprings():

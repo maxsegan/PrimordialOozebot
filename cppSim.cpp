@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <math.h>
 #include <vector>
@@ -24,15 +25,15 @@ struct Spring {
   double l0; // meters
 };
 
-const double kSpring = 10000.0;
+const double kSpring = 500.0;
 const double kGround = 100000.0;
 const double kOscillationFrequency = 0;//10000;//100000
 const double kDropHeight = 0.2;
 const int kNumPerSide = 10;
 const double staticFriction = 0.5;
 const double kineticFriction = 0.3;
-const double dt = 0.0000005;
-const double dampening = 1 - (dt * 1000);
+const double dt = 0.0001;
+const double dampening = 1 - (dt * 5);
 const double gravity = -9.81;
 
 int main() {
@@ -56,26 +57,38 @@ int main() {
             }
         }
     }
+    std::map<int, std::vector<int>> connected;
+    connected[0] = {};
     // Create the springs
     for (int x = 0; x < kNumPerSide; x++) {
         for (int y = 0; y < kNumPerSide; y++) {
             for (int z = 0; z < kNumPerSide; z++) {
-                Point p1 = cache[x][y][z];
                 int p1index = z + kNumPerSide * y + kNumPerSide * kNumPerSide * x;
-                for (int x1 = x; x1 < x + 2; x1++) {
-                    if (x1 == kNumPerSide) {
+
+                Point p1 = cache[x][y][z];
+                for (int x1 = x - 1; x1 < x + 2; x1++) {
+                    if (x1 == kNumPerSide || x1 < 0) {
                         continue;
                     }
-                    for (int y1 = y; y1 < y + 2; y1++) {
-                        if (y1 == kNumPerSide) {
+                    for (int y1 = y - 1; y1 < y + 2; y1++) {
+                        if (y1 == kNumPerSide || y1 < 0) {
                             continue;
                         }
-                        for (int z1 = z; z1 < z + 2; z1++) {
-                            if (z1 == kNumPerSide || (x1 == x && y1 == y && z1 == z)) {
+                        for (int z1 = z - 1; z1 < z + 2; z1++) {
+                            if (z1 == kNumPerSide || z1 < 0 || (x1 == x && y1 == y && z1 == z)) {
                                 continue;
                             }
-                            Point p2 = cache[x1][y1][z1];
                             int p2index = z1 + kNumPerSide * y1 + kNumPerSide * kNumPerSide * x1;
+                            if (connected.find(p2index) == connected.end()) {
+                                connected[p2index] = {};
+                            }
+                            if (std::find(connected[p1index].begin(), connected[p1index].end(), p2index) != connected[p1index].end()) {
+                                continue;
+                            }
+                            connected[p1index].push_back(p2index);
+                            connected[p2index].push_back(p1index);
+
+                            Point p2 = cache[x1][y1][z1];
                             double length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
                             Spring s = {kSpring, p1index, p2index, length};
                             springs.push_back(s);
@@ -89,8 +102,9 @@ int main() {
     // 60 fps - 0.000166
     const double limit = 0.1;
     double t = 0;
-    int y = round(limit / dt * springs.size());
-    printf("num springs evaluated: %i\n", y);
+    long long int numSprings = springs.size();
+    long long int y = (long long int)(limit / dt * numSprings);
+    printf("num springs evaluated: %lld\n", y);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     while (t < limit) {
@@ -164,9 +178,9 @@ int main() {
             p.vy = vy;
             vz = (az * dt + vz) * dampening;
             p.vz = vz;
-            p.x += vx;
-            p.y += vy;
-            p.z += vz;
+            p.x += vx * dt;
+            p.y += vy * dt;
+            p.z += vz * dt;
             points[i] = p;
         }
         t += dt;

@@ -23,7 +23,7 @@ mutable struct Spring
 end
 
 function main()
-    kSpring::Float64 = 10000.0
+    kSpring::Float64 = 500.0
     kGround::Float64 = 100000.0
     kOscillationFrequency::Float64 = 0#10000.0
     kDropHeight::Float64 = 0.2
@@ -92,8 +92,8 @@ function main()
     end
     staticFriction::Float64 = 0.5
     kineticFriction::Float64 = 0.3
-    dt::Float64 = 0.0000005
-    dampening::Float64 = 1 - (dt * 1000)
+    dt::Float64 = 0.0001
+    dampening::Float64 = 1 - (dt * 5)
     gravity::Float64 = -9.81
 
     limit::Float64 = t + 0.1
@@ -161,9 +161,9 @@ function main()
                 p.vx = (ax * dt + p.vx) * dampening
                 p.vy = (ay * dt + p.vy) * dampening
                 p.vz = (az * dt + p.vz) * dampening
-                p.x += p.vx
-                p.y += p.vy
-                p.z += p.vz
+                p.x += p.vx * dt
+                p.y += p.vy * dt
+                p.z += p.vz * dt
             end
             t += dt
         end

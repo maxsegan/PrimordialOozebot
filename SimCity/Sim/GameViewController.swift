@@ -9,13 +9,13 @@
 import SceneKit
 import QuartzCore
 
-let kSpring: Double = 10000.0
+let kSpring: Double = 500.0
 let kGround: Double = 100000.0
 let kOscillationFrequency: Double = 0//10000//100000
 let kUseTetrahedron = false
 let kDropHeight: Double = 0.2
-let kUseThousand = true
-let kNoRender = true
+let kUseThousand = false
+let kNoRender = false
 
 class GameViewController: NSViewController {
   let scene = SCNScene()
@@ -88,7 +88,7 @@ class GameViewController: NSViewController {
     box?.removeFromParentNode()
     self.time = updateSim(points: &self.points!, lines: &self.lines!, time: self.time)
     draw(points: self.points!, lines: self.lines!, scene: scene)
-    let delay:Double = 0.02
+    let delay:Double = 0.0000001
     perform(#selector(update), with: nil, afterDelay: delay)
   }
 }
@@ -206,27 +206,40 @@ func gen() -> (points: [Point], springs: [Spring]) {
     }
   }
   if kUseThousand {
+    var connected: [Int: [Int]] = [:]
     for x in 0..<10 {
       for y in 0..<10 {
         for z in 0..<10 {
-          let p1 = cache[x]![y]![z]!
           let p1index = z + 10 * y + 100 * x
-          // connect to the ones adjacent to it, assuming we never connect to lower numbers not to duplicate
-          let ps: [(Point?, Int)] = [(cache[x + 1]?[y]?[z], z + 10 * y + 100 * (x+1)),
-                                     (cache[x]?[y + 1]?[z], z + 10 * (y+1) + 100 * x),
-                                      (cache[x]?[y]?[z + 1], z + 1 + 10 * y + 100 * x),
-                                      (cache[x + 1]?[y + 1]?[z], z + 10 * (y+1) + 100 * (x+1)),
-                                      (cache[x + 1]?[y]?[z + 1], z + 1 + 10 * y + 100 * (x+1)),
-                                      (cache[x]?[y + 1]?[z + 1], z + 1 + 10 * (y+1) + 100 * x),
-                                      (cache[x + 1]?[y + 1]?[z + 1], z + 1 + 10 * (y+1) + 100 * (x+1))]
-
-          for tuple in ps {
-            let p = tuple.0
-            let p2index = tuple.1
-            if p != nil {
-              let p2 = p!
-              let length = (pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2)).squareRoot()
-              springs.append(Spring(k: kSpring, p1: p1index, p2: p2index, l0: length))
+          if connected[p1index] == nil {
+            connected[p1index] = []
+          }
+          
+          let p1 = cache[x]![y]![z]!
+          for x1 in (x-1)...(x+1) {
+            if x1 == 10 || x1 < 0 {
+              continue
+            }
+            for y1 in (y-1)...(y+1) {
+              if y1 == 10 || y1 < 0 {
+                continue
+              }
+              for z1 in (z-1)...(z+1) {
+                if z1 == 10 || z1 < 0 || (x == x1 && y == y1 && z == z1) {
+                  continue
+                }
+                let p2index = z1 + 10 * y1 + 100 * x1
+                if connected[p2index] == nil {
+                  connected[p2index] = []
+                } else if connected[p1index]!.contains(p2index) {
+                  continue
+                }
+                connected[p1index]!.append(p2index)
+                connected[p2index]!.append(p1index)
+                let p2 = cache[x1]![y1]![z1]!
+                let length = (pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2)).squareRoot()
+                springs.append(Spring(k: kSpring, p1: p1index, p2: p2index, l0: length))
+              }
             }
           }
         }
@@ -242,6 +255,7 @@ func gen() -> (points: [Point], springs: [Spring]) {
       }
     }
   }
+
   return (points, springs)
 }
 
@@ -249,8 +263,8 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
   var t = time
   let staticFriction = 0.5
   let kineticFriction = 0.3
-  let dt = 0.0000005
-  let dampening = 1 - (dt * 1000)
+  let dt = 0.0001
+  let dampening = 1 - (dt * 5)
   let gravity = -9.81
   // 60 fps - 0.000166
   let limit: Double
@@ -258,7 +272,7 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
   if kNoRender {
     limit = t + 0.1
   } else {
-    limit = t + 0.00001
+    limit = t + 0.000166
   }
   while t < limit {
     let adjust = 1 + sin(t * kOscillationFrequency) * 0.1
@@ -327,9 +341,9 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
       p.vy = vy
       vz = (az * dt + vz) * dampening
       p.vz = vz
-      p.x += vx
-      p.y += vy
-      p.z += vz
+      p.x += vx * dt
+      p.y += vy * dt
+      p.z += vz * dt
       points[i] = p
     }
     t += dt

@@ -4,7 +4,7 @@ import math
 import numpy
 from numba import jit
 
-kSpring = 10000.0
+kSpring = 500.0
 kGround = 100000.0
 kOscillationFrequency = 0#10000#100000
 kDropHeight = 0.2
@@ -35,11 +35,11 @@ def main():
 
     staticFriction = 0.5
     kineticFriction = 0.3
-    dt = 0.0000005
-    dampening = 1 - (dt * 1000)
+    dt = 0.0001
+    dampening = 1 - (dt * 5)
     gravity = -9.81
 
-    limit = 0.001
+    limit = 0.1
     print("num springs evaluated: ", len(springs))
     print("time multiplier: ",  limit / dt)
 
@@ -117,9 +117,9 @@ def sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, 
             p[3] = (ax * dt + p[3]) * dampening
             p[4] = (ay * dt + p[4]) * dampening
             p[5] = (az * dt + p[5]) * dampening
-            p[0] += p[3]
-            p[1] += p[4]
-            p[2] += p[5]
+            p[0] += p[3] * dt
+            p[1] += p[4] * dt
+            p[2] += p[5] * dt
         t += dt
 
 def genPointsAndSprings():
