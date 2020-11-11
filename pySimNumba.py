@@ -140,23 +140,34 @@ def genPointsAndSprings():
                     cache[x][y] = {}
                 cache[x][y][z] = p
 
+    connected = {}
     #Create the springs
     for x in range(10):
         for y in range(10):
             for z in range(10):
-                p1 = cache[x][y][z]
                 p1index = z + 10 * y + 100 * x
-                for x1 in range(x, x+2):
-                    if x1 == 10:
+                if not p1index in connected:
+                    connected[p1index] = []
+                
+                p1 = cache[x][y][z]
+                
+                for x1 in range(x - 1, x+2):
+                    if x1 == 10 or x1 < 0:
                         continue
-                    for y1 in range(y, y+2):
-                        if y1 == 10:
+                    for y1 in range(y - 1, y+2):
+                        if y1 == 10 or y1 < 0:
                             continue
-                        for z1 in range(z, z+2):
-                            if z1 == 10 or (x1 == x and y1 == y and z1 == z):
+                        for z1 in range(z - 1, z+2):
+                            if z1 == 10 or z1 < 0 or (x1 == x and y1 == y and z1 == z):
                                 continue
-                            p2 = cache[x1][y1][z1]
                             p2index = z1 + 10 * y1 + 100 * x1
+                            if not p2index in connected:
+                                connected[p2index] = []
+                            elif p2index in connected[p1index]:
+                                continue
+                            connected[p1index].append(p2index)
+                            connected[p2index].append(p1index)
+                            p2 = cache[x1][y1][z1]
                             length = math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
                             springs.append(numpy.array([kSpring, p1index, p2index, length, length]))
     return numpy.array(points), numpy.array(springs)
