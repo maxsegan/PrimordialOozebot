@@ -66,7 +66,7 @@ func updateSim(ps: [Point], ls: [Spring], springIndices: [[Int]]) {
   let group = DispatchGroup()
 
   while t < limit {
-    let adjust = 1 + sin(t * kOscillationFrequency) * 0.1
+    let adjust = 0.0// 1 + sin(t * kOscillationFrequency) * 0.1
 
     for i in 0..<numCores-1 {
       group.enter()
@@ -105,7 +105,10 @@ func updateLines(lines: inout [Spring], points: [Point], adjust: Double, start: 
     let p2x = points[p2ind].x
     let p2y = points[p2ind].y
     let p2z = points[p2ind].z
-    let dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2))
+    let pxd = p1x - p2x
+    let pyd = p1y - p2y
+    let pzd = p1z - p2z
+    let dist = sqrt(pxd * pxd + pyd * pyd + pzd * pzd)
 
     // negative if repelling, positive if attracting
     let f = l.k * (dist - (l.l0 * adjust))
@@ -145,7 +148,7 @@ func updatePoints(points: inout [Point], lines: [Spring], springIndices: [[Int]]
     var vz = p.vz
 
     if y <= 0 {
-      let fh = sqrt(pow(fx, 2) + pow(fz, 2))
+      let fh = sqrt(fx * fx + fz * fz)
       let fyfric = abs(fy * staticFriction)
       if fh < fyfric {
         fx = 0
@@ -236,7 +239,7 @@ func gen() -> (points: [Point], springs: [Spring], springIndices: [[Int]]) {
               connected[p1index]!.append(p2index)
               connected[p2index]!.append(p1index)
               let p2 = points[p2index]
-              let length = (pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2)).squareRoot()
+              let length = ((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y) + (p1.z - p2.z) * (p1.z - p2.z)).squareRoot()
               springIndices[p1index].append(springs.count)
               springIndices[p2index].append(springs.count)
               springs.append(Spring(k: kSpring, p1: p1index, p2: p2index, l0: length, dx: 0, dy: 0, dz: 0))
