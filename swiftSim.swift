@@ -1,6 +1,5 @@
 #!/usr/bin/swift
 
-import Foundation
 import Dispatch
 
 let staticFriction = 0.5
@@ -52,7 +51,7 @@ func updateSim(ps: [Point], ls: [Spring], springIndices: [[Int]]) {
   let limit = 5.0
   let realTime = DispatchTime.now()
 
-  let numCores = 20
+  let numCores = 4
 
   var lineSplits:[Int] = []
   for i in 0...numCores {
@@ -86,7 +85,7 @@ func updateSim(ps: [Point], ls: [Spring], springIndices: [[Int]]) {
         group.leave()
       }
     }
-    updatePoints(points: &points, lines: lines, springIndices: springIndices, start: pq3, stop: points.count)
+    updatePoints(points: &points, lines: lines, springIndices: springIndices, start: pointSplits[numCores - 2], stop: points.count)
     group.wait()
 
     t += dt
