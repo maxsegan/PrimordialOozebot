@@ -24,9 +24,6 @@ struct Spring {
   int p1; // Index of first point
   int p2; // Index of second point
   float l0; // meters
-  float dx; // caching for CUDA ease
-  float dy; // caching for CUDA ease
-  float dz; // caching for CUDA ease
 };
 
 void genPointsAndSprings(
@@ -44,62 +41,50 @@ void genPointsAndSprings(
 #define kGround 100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 40;
+const int pointsPerSide = 48;
 
-__global__ void update_spring(Point *points, Spring *springs, float adjust, int n) {
+__global__ void update_point(Point *points, Spring *springs, int *pointsToSprings, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= n) {
-    	return;
-    }
-
-    Point p1 = points[springs[i].p1];
-    Point p2 = points[springs[i].p2];
-
-    float p1x = p1.x;
-    float p1y = p1.y;
-    float p1z = p1.z;
-    float p2x = p2.x;
-    float p2y = p2.y;
-    float p2z = p2.z;
-    float dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2));
-
-    // negative if repelling, positive if attracting
-    float f = springs[i].k * (dist - (springs[i].l0 * adjust));
-    // distribute force across the axes
-    float dx = f * (p1x - p2x) / dist;
-    float dy = f * (p1y - p2y) / dist;
-    float dz = f * (p1z - p2z) / dist;
-
-    springs[i].dx = dx;
-    springs[i].dy = dy;
-    springs[i].dz = dz;
-}
-
-__global__ void update_point(Point *points, Spring *springs, int *pointsToSprings) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
 
     Point p = points[i];
-    float mass = p.mass;
+    int numSprings = p.numSprings;
+
+	float mass = p.mass;
+    float fx = 0;
+    float fz = 0;
+    float fy = gravity * mass;
+    for (int j = 0; j < numSprings; j++) {
+    	int springIndex = pointsToSprings[i * maxSprings + j];
+        Spring s = springs[springIndex];
+        Point p1 = points[s.p1];
+        Point p2 = points[s.p2];
+
+	    float p1x = p1.x;
+	    float p1y = p1.y;
+	    float p1z = p1.z;
+	    float p2x = p2.x;
+	    float p2y = p2.y;
+	    float p2z = p2.z;
+	    float dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2));
+
+	    // negative if repelling, positive if attracting
+	    float f = s.k * (dist - (s.l0 * adjust));
+	    // distribute force across the axes
+	    if (s.p1 == i) {
+	    	fx -= f * (p1x - p2x) / dist;
+	    	fy -= f * (p1y - p2y) / dist;
+	    	fz -= f * (p1z - p2z) / dist;
+		} else {
+			fx += f * (p1x - p2x) / dist;
+	    	fy += f * (p1y - p2y) / dist;
+	    	fz += f * (p1z - p2z) / dist;
+		}
+	}
     float y = p.y;
     float vx = p.vx;
     float vy = p.vy;
     float vz = p.vz;
-    float fy = gravity * mass;
-    float fx = 0;
-    float fz = 0;
-    for (int j = 0; j < p.numSprings; j++) {
-    	int springIndex = pointsToSprings[i * maxSprings + j];
-        Spring s = springs[springIndex];
-        if (s.p1 == i) {
-            fx -= s.dx;
-            fy -= s.dy;
-            fz -= s.dz;
-        } else {
-            fx += s.dx;
-            fy += s.dy;
-            fz += s.dz;
-        }
-    }
 
     if (y <= 0) {
         float fh = sqrt(pow(fx, 2) + pow(fz, 2));
@@ -117,7 +102,7 @@ __global__ void update_point(Point *points, Spring *springs, int *pointsToSpring
     float ax = fx / mass;
     float ay = fy / mass;
     float az = fz / mass;
-    // reset the force cache
+
     vx = (ax * dt + vx) * dampening;
     p.vx = vx;
     vy = (ay * dt + vy) * dampening;
@@ -152,19 +137,21 @@ int main() {
     double t = 0;
     // 60 fps - 0.000166
     double limit = 5;
-    int ppsSquare = pointsPerSide * pointsPerSide;
+    int numPoints = points.size();
+    int numThreads = 11;
+    int numBlocks = points.size() / numThreads + 1;
   
   	int numSprings = (int)springs.size();
 
-    int springThreads = 100;
+    // int springThreads = 100;
     int springBlocks = (int)ceil(numSprings / 100.0);
     printf("num springs evaluated: %lld\n", long long int(limit / dt * numSprings));
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     while (t < limit) {
         float adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        update_spring<<<springBlocks, springThreads>>>(p_d, s_d, adjust, numSprings);
-        update_point<<<ppsSquare, pointsPerSide>>>(p_d, s_d, ps_d);
+        //update_spring<<<springBlocks, springThreads>>>(p_d, s_d, adjust, numSprings);
+        update_point<<<numBlocks, numThreads>>>(p_d, s_d, ps_d, adjust, numPoints);
         t += dt;
     }
 
@@ -241,7 +228,7 @@ void genPointsAndSprings(
 
                             Point p2 = points[p2index];
                             float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
-                            Spring s = {kSpring, p1index, p2index, length, 0, 0, 0};
+                            Spring s = {kSpring, p1index, p2index, length};
                             int springIndex = springs.size();
                             springs.push_back(s);
                             int ppsIndex1 = p1index * maxSprings + p1.numSprings;
