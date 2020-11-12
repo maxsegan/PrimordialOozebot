@@ -25,6 +25,9 @@ struct Spring {
   int p1; // Index of first point
   int p2; // Index of second point
   float l0; // meters
+  float dx;
+  float dy;
+  float dz;
 };
 
 void genPointsAndSprings(
@@ -44,7 +47,31 @@ const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
 const int pointsPerSide = 30;
 
-__global__ void update_point(Point *points, Spring *springs, int *pointsToSprings, float adjust, int n) {
+__global__ void update_spring(Point *points, Spring *springs, float adjust, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+
+    Spring s = springs[i];
+    Point p1 = points[s.p1];
+    Point p2 = points[s.p2];
+
+    float dx = p1.x - p2.x;
+    float dy = p1.y - p2.y;
+    float dz = p1.z - p2.z;
+
+    float dist = sqrt(dx * dx + dy * dy + dz * dz);
+
+    // negative if repelling, positive if attracting
+    float f = s.k * (dist - (s.l0 * adjust));
+
+    float fd = f / dist;
+
+    springs[i].dx = fd * dx;
+    springs[i].dy = fd * dy;
+    springs[i].dz = fd * dz;
+}
+
+__global__ void update_point(Point *points, Spring *springs, int *pointsToSprings, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
 
@@ -58,22 +85,15 @@ __global__ void update_point(Point *points, Spring *springs, int *pointsToSpring
     for (int j = 0; j < numSprings; j++) {
     	int springIndex = pointsToSprings[i * maxSprings + j];
         Spring s = springs[springIndex];
-        Point p1 = points[s.p1];
-        Point p2 = points[s.p2];
 
-	    float dist = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
-
-	    // negative if repelling, positive if attracting
-	    float f = s.k * (dist - (s.l0 * adjust));
-	    // distribute force across the axes
 	    if (s.p1 == i) {
-	    	fx -= f * (p1.x - p2.x) / dist;
-	    	fy -= f * (p1.x - p2.y) / dist;
-	    	fz -= f * (p1.z - p2.z) / dist;
+	    	fx -= s.dx;
+	    	fy -= s.dy;
+	    	fz -= s.dz;
 		} else {
-			fx += f * (p1.x - p2.x) / dist;
-	    	fy += f * (p1.y - p2.y) / dist;
-	    	fz += f * (p1.z - p2.z) / dist;
+			fx += s.dx;
+	    	fy += s.dy;
+	    	fz += s.dz;
 		}
 	}
     float y = p.y;
@@ -133,10 +153,12 @@ int main() {
     // 60 fps - 0.000166
     double limit = 5;
     int numPoints = points.size();
-    int numThreads = 11;
-    int numBlocks = points.size() / numThreads + 1;
+    int numPointThreads = 11;
+    int numPointBlocks = numPoints / numSpringThreads + 1;
   
   	int numSprings = (int)springs.size();
+    int numSpringThreads = 100;
+    int numSpringBlocks = numSprings / numSpringThreads + 1;
 
     // int springThreads = 100;
     int springBlocks = (int)ceil(numSprings / 100.0);
@@ -145,7 +167,8 @@ int main() {
 
     while (t < limit) {
         float adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        update_point<<<numBlocks, numThreads>>>(p_d, s_d, ps_d, adjust, numPoints);
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, adjust, numPoints);
+        update_point<<<numPointBlocks, numPointThreads>>>(p_d, s_d, ps_d, numPoints);
         t += dt;
     }
 
@@ -222,7 +245,7 @@ void genPointsAndSprings(
 
                             Point p2 = points[p2index];
                             float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
-                            Spring s = {kSpring, p1index, p2index, length};
+                            Spring s = {kSpring, p1index, p2index, length, 0, 0, 0};
                             int springIndex = springs.size();
                             springs.push_back(s);
                             int ppsIndex1 = p1index * maxSprings + p1.numSprings;

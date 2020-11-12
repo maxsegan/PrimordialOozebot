@@ -111,7 +111,6 @@ def sim(limit, staticFriction, kineticFriction, dt, dampening, gravity, points, 
         t += dt
 
 def genPointsAndSprings():
-    cache = {}
     points = []
     springs = []
 
@@ -122,11 +121,6 @@ def genPointsAndSprings():
                 # (0,0,0) or (0.1,0.1,0.1) and all combinations
                 p = Point(x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0, 0, 0, 0.1, 0, 0, 0)
                 points.append(p)
-                if not x in cache:
-                    cache[x] = {}
-                if not y in cache[x]:
-                    cache[x][y] = {}
-                cache[x][y][z] = p
 
     connected = {}
     #Create the springs
@@ -137,7 +131,7 @@ def genPointsAndSprings():
                 if not p1index in connected:
                     connected[p1index] = []
 
-                p1 = cache[x][y][z]
+                p1 = points[p1index]
 
                 for x1 in range(x - 1, x+2):
                     if x1 == kNumPerSide or x1 < 0:
@@ -155,7 +149,7 @@ def genPointsAndSprings():
                                 continue
                             connected[p1index].append(p2index)
                             connected[p2index].append(p1index)
-                            p2 = cache[x1][y1][z1]
+                            p2 = points[p2index]
                             length = math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
                             springs.append(Spring(kSpring, p1index, p2index, length, length))
     return points, springs
