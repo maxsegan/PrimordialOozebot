@@ -41,7 +41,7 @@ void genPointsAndSprings(
 #define kGround 100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 100;
+const int pointsPerSide = 30;
 
 __global__ void update_point(Point *points, Spring *springs, int *pointsToSprings, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -150,7 +150,6 @@ int main() {
 
     while (t < limit) {
         float adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        //update_spring<<<springBlocks, springThreads>>>(p_d, s_d, adjust, numSprings);
         update_point<<<numBlocks, numThreads>>>(p_d, s_d, ps_d, adjust, numPoints);
         t += dt;
     }
