@@ -33,7 +33,7 @@ const double kSpring = 500.0;
 const double kGround = 100000.0;
 const double kOscillationFrequency = 0;//10000;//100000
 const double kDropHeight = 0.2;
-const int kNumPerSide = 10;
+const int kNumPerSide = 30;
 const double staticFriction = 0.5;
 const double kineticFriction = 0.3;
 const double dt = 0.0001;
@@ -63,8 +63,8 @@ void updateSprings(std::vector<Point> &points, std::vector<Spring> &springs, dou
     }
 }
 
-void updatePoints(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<int> &pointsToSprings) {
-    for (int i = 0; i < points.size(); i++) {
+void updatePoints(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<int> &pointsToSprings, int start, int end) {
+    for (int i = start; i < end; i++) {
         Point p = points[i];
         int numSprings = p.numSprings;
 
@@ -199,7 +199,7 @@ int main() {
     }
   
     // 60 fps - 0.000166
-    const double limit = 5;
+    const double limit = 1;
     double t = 0;
     long long int numSprings = springs.size();
     long long int y = (long long int)(limit / dt * numSprings);
@@ -211,7 +211,9 @@ int main() {
         std::for_each(std::execution::par, std::begin(springSplits), std::end(springSplits), [&](auto pair) {
             updateSprings(points, springs, adjust, pair.first, pair.second);
         });
-        updatePoints(points, springs, pointSprings);
+        std::for_each(std::execution::par, std::begin(pointSplits), std::end(pointSplits), [&](auto pair) {
+            updatePoints(points, springs, pointSprings, pair.first, pair.second);
+        });
         t += dt;
     }
 
