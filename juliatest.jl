@@ -96,9 +96,9 @@ function main()
     dampening::Float64 = 1 - (dt * 5)
     gravity::Float64 = -9.81
 
-    limit::Float64 = t + 0.1
+    limit::Float64 = 1
     println("num springs evaluated: ", size(springs)[1])
-    println("time multiplier: ",  0.1 / dt)
+    println("time multiplier: ",  limit / dt)
 
     @time begin
         while t < limit
@@ -142,9 +142,7 @@ function main()
                     fh::Float64 = sqrt(abs2(fx) + abs2(fz))
                     if fh < abs(fy * staticFriction)
                         fx = 0
-                        p.vx = 0
                         fz = 0
-                        p.vz = 0
                     else
                         fyfric = fy * kineticFriction
                         fx = fx - fyfric

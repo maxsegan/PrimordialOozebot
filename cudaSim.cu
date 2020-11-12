@@ -60,25 +60,19 @@ __global__ void update_point(Point *points, Spring *springs, int *pointsToSpring
         Point p1 = points[s.p1];
         Point p2 = points[s.p2];
 
-	    float p1x = p1.x;
-	    float p1y = p1.y;
-	    float p1z = p1.z;
-	    float p2x = p2.x;
-	    float p2y = p2.y;
-	    float p2z = p2.z;
-	    float dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2));
+	    float dist = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
 
 	    // negative if repelling, positive if attracting
 	    float f = s.k * (dist - (s.l0 * adjust));
 	    // distribute force across the axes
 	    if (s.p1 == i) {
-	    	fx -= f * (p1x - p2x) / dist;
-	    	fy -= f * (p1y - p2y) / dist;
-	    	fz -= f * (p1z - p2z) / dist;
+	    	fx -= f * (p1.x - p2.x) / dist;
+	    	fy -= f * (p1.x - p2.y) / dist;
+	    	fz -= f * (p1.z - p2.z) / dist;
 		} else {
-			fx += f * (p1x - p2x) / dist;
-	    	fy += f * (p1y - p2y) / dist;
-	    	fz += f * (p1z - p2z) / dist;
+			fx += f * (p1.x - p2.x) / dist;
+	    	fy += f * (p1.y - p2.y) / dist;
+	    	fz += f * (p1.z - p2.z) / dist;
 		}
 	}
     float y = p.y;
