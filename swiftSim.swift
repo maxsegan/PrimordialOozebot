@@ -30,22 +30,31 @@ struct Spring {
   let p1: Int // Index of first point
   let p2: Int // Index of second point
   let l0: Double // meters
+  var dx: Double
+  var dy: Double
+  var dz: Double
 }
 
 func main() {
   let ret = gen()
   
-  updateSim(ps: ret.points, lines: ret.springs, springIndices: ret.springIndices)
+  updateSim(ps: ret.points, ls: ret.springs, springIndices: ret.springIndices)
 }
 
-func updateSim(ps: [Point], lines: [Spring], springIndices: [Int]) {
+func updateSim(ps: [Point], ls: [Spring], springIndices: [Int]) {
   var points = ps
+  var lines = ls
   var t = 0.0
   // 60 fps - 0.000166
   let limit:Double = 1
   let realTime = DispatchTime.now()
 
   let numCores = 4
+  
+  var springSplits:[Int] = []
+  for i in 0...numCores {
+    springSplits.append(i * lines.count / numCores)
+  }
 
   var pointSplits:[Int] = []
   for i in 0...numCores {
@@ -56,6 +65,16 @@ func updateSim(ps: [Point], lines: [Spring], springIndices: [Int]) {
 
   while t < limit {
     let adjust = 1 + sin(t * kOscillationFrequency) * 0.1
+    
+    for i in 0..<numCores-1 {
+      group.enter()
+      DispatchQueue.global().async {
+        updateSprings(points: points, lines: &lines, adjust: adjust, start: springSplits[i], stop: springSplits[i+1])
+        group.leave()
+      }
+    }
+    updateSprings(points: points, lines: &lines, adjust: adjust, start: springSplits[numCores - 1], stop: springSplits[numCores])
+    group.wait()
 
     for i in 0..<numCores-1 {
       group.enter()
@@ -75,6 +94,30 @@ func updateSim(ps: [Point], lines: [Spring], springIndices: [Int]) {
   print(points[0].x, points[0].y, points[0].z)
 }
 
+func updateSprings(points: [Point], lines: inout [Spring], adjust: Double, start: Int, stop: Int) {
+  for i in start..<stop {
+    let s = lines[i]
+
+    let p1 = points[s.p1]
+    let p2 = points[s.p2]
+
+    let xd:Double = p1.x - p2.x
+    let yd:Double = p1.y - p2.y
+    let zd:Double = p1.z - p2.z
+    
+    let dist:Double = sqrt(pow(xd, 2) + pow(yd, 2) + pow(zd, 2))
+    
+    // negative if repelling, positive if attracting
+    let f:Double = s.k * (dist - (s.l0 * adjust))
+    let fd:Double = f / dist
+    
+    // distribute force across the axes
+    lines[i].dx = fd * xd
+    lines[i].dy = fd * yd
+    lines[i].dz = fd * zd
+  }
+}
+
 func updatePoints(points: inout [Point], lines: [Spring], springIndices: [Int], adjust: Double, start: Int, stop: Int) {
   for i in start..<stop {
     var p = points[i]
@@ -88,31 +131,15 @@ func updatePoints(points: inout [Point], lines: [Spring], springIndices: [Int], 
       let springIndex = springIndices[i * kMaxSprings + j]
       let s = lines[springIndex]
 
-      let p1 = p
-      var p2 = p
       if i == s.p1 {
-        p2 = points[s.p2]
+        fx -= s.dx
+        fy -= s.dy
+        fz -= s.dz
       } else {
-        p2 = points[s.p1]
+        fx += s.dx
+        fy += s.dy
+        fz += s.dz
       }
-
-      let xd:Double = p1.x - p2.x
-      let yd:Double = p1.y - p2.y
-      let zd:Double = p1.z - p2.z
-
-      let dist:Double = sqrt(pow(xd, 2) + pow(yd, 2) + pow(zd, 2))
-
-      // negative if repelling, positive if attracting
-      let f:Double = s.k * (dist - (s.l0 * adjust))
-      let fd:Double = f / dist
-
-      // distribute force across the axes
-      let dx:Double = fd * xd
-      let dy:Double = fd * yd
-      let dz:Double = fd * zd
-      fx -= dx
-      fy -= dy
-      fz -= dz
     }
     
     let y = p.y
@@ -210,7 +237,7 @@ func gen() -> (points: [Point], springs: [Spring], springIndices: [Int]) {
               let si2 = p2index * kMaxSprings + p2.numSprings
               springIndices[si1] = springs.count
               springIndices[si2] = springs.count
-              springs.append(Spring(k: kSpring, p1: p1index, p2: p2index, l0: length))
+              springs.append(Spring(k: kSpring, p1: p1index, p2: p2index, l0: length, dx: 0, dy: 0, dz: 0))
               points[p1index].numSprings += 1
               points[p2index].numSprings += 1
               p1.numSprings += 1
