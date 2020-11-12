@@ -7,7 +7,6 @@
 #include <chrono>
 
 // Usage: nvcc -O2 cudaSim.cu -o cudaSim -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64"
-// TODO go back to the double pass not to compute springs twice
 
 struct Point {
   float x; // meters
@@ -45,7 +44,7 @@ void genPointsAndSprings(
 #define kGround 100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 30;
+const int pointsPerSide = 100;
 
 __global__ void update_spring(Point *points, Spring *springs, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -151,10 +150,10 @@ int main() {
 
     double t = 0;
     // 60 fps - 0.000166
-    double limit = 5;
+    double limit = 1;
     int numPoints = points.size();
     int numPointThreads = 11;
-    int numPointBlocks = numPoints / numSpringThreads + 1;
+    int numPointBlocks = numPoints / numPointThreads + 1;
   
   	int numSprings = (int)springs.size();
     int numSpringThreads = 100;
