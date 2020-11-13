@@ -7,7 +7,7 @@ let kineticFriction = 0.3
 let dt = 0.0001
 let dampening = 1 - (dt * 5)
 let gravity = -9.81
-let kNumPerSide = 20
+let kNumPerSide = 2
 let kSpring: Double = 500.0
 let kGround: Double = 100000.0
 let kOscillationFrequency: Double = 0
@@ -91,7 +91,9 @@ func updateSim(ps: [Point], ls: [Spring], springIndices: [Int]) {
   let ts = (Double(DispatchTime.now().uptimeNanoseconds - realTime.uptimeNanoseconds)) / 1000000000.0
   print("num springs evaluated: ", Double(lines.count) * limit / dt, ts)
   print(Double(lines.count) * limit / dt / ts)
-  print(points[0].x, points[0].y, points[0].z)
+  for i in 0..<points.count {
+    print(i, points[i].x, points[i].y, points[i].z)
+  }
 }
 
 func updateSprings(points: [Point], lines: inout [Spring], adjust: Double, start: Int, stop: Int) {

@@ -14,7 +14,7 @@ let kGround: Double = 100000.0
 let kOscillationFrequency: Double = 0//10000//100000
 let kUseTetrahedron = false
 let kDropHeight: Double = 0.2
-let kUseThousand = true
+let kUseThousand = false
 let kNoRender = true
 
 class GameViewController: NSViewController {
@@ -84,6 +84,12 @@ class GameViewController: NSViewController {
   }
   
   @objc func update() {
+    if self.time >= 5 {
+      for i in 0..<self.points!.count {
+        print(i, self.points![i].x, self.points![i].y, self.points![i].z)
+      }
+      return
+    }
     let box = scene.rootNode.childNode(withName: "box", recursively: true)
     box?.removeFromParentNode()
     self.time = updateSim(points: &self.points!, lines: &self.lines!, time: self.time)
@@ -350,7 +356,9 @@ func updateSim(points: inout [Point], lines: inout [Spring], time: Double) -> Do
   }
   if kNoRender {
     print("num springs evaluated: ", Double(lines.count) * 5 / dt, CACurrentMediaTime() - realTime)
-    print(points[0].y)
+    for i in 0..<points.count {
+      print(i, points[i].x, points[i].y, points[i].z)
+    }
   }
   return t
 }
@@ -406,4 +414,3 @@ func redraw(points: [Point], lines: [Spring], scene: SCNScene) {
     lineNode!.look(at: SCNVector3(p2.x, p2.y, p2.z), up: scene.rootNode.worldUp, localFront: lineNode!.worldUp)
   }
 }
-

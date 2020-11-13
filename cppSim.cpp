@@ -29,7 +29,7 @@ const double kSpring = 500.0;
 const double kGround = 100000.0;
 const double kOscillationFrequency = 0;//10000;//100000
 const double kDropHeight = 0.2;
-const int kNumPerSide = 10;
+const int kNumPerSide = 2;
 const double staticFriction = 0.5;
 const double kineticFriction = 0.3;
 const double dt = 0.0001;
@@ -181,7 +181,9 @@ int main() {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
-    printf("p[0].y = %f, x = %f, z = %f\n", points[0].y, points[0].x, points[0].z);
+    for (int i = 0; i < points.size(); i++) {
+        printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
+    }
 
     return 0;
 }
