@@ -44,7 +44,7 @@ void genPointsAndSprings(
 #define kGround 100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 2;
+const int pointsPerSide = 60;
 
 __global__ void update_spring(Point *points, Spring *springs, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -101,15 +101,15 @@ __global__ void update_point(Point *points, Spring *springs, int *pointsToSpring
     float vz = p.vz;
 
     if (y <= 0) {
-        float fh = sqrt(pow(fx, 2) + pow(fz, 2));
+        float fh = sqrt(fx * fx + fz * fz);
         float fyfric = abs(fy * staticFriction);
         if (fh < fyfric) {
             fx = 0;
             fz = 0;
         } else {
-            float fykinetic = abs(fy * kineticFriction);
-            fx = fx - fx / fh * fykinetic;
-            fz = fz - fz / fh * fykinetic;
+            float fykinetic = abs(fy * kineticFriction) * fh;
+            fx = fx - fx / fykinetic;
+            fz = fz - fz / fykinetic;
         }
         fy += -kGround * y;
     }
@@ -150,13 +150,13 @@ int main() {
 
     double t = 0;
     // 60 fps - 0.000166
-    double limit = 5;
+    double limit = 1;
     int numPoints = points.size();
-    int numPointThreads = 11;
+    int numPointThreads = 12;
     int numPointBlocks = numPoints / numPointThreads + 1;
   
   	int numSprings = (int)springs.size();
-    int numSpringThreads = 100;
+    int numSpringThreads = 25;
     int numSpringBlocks = numSprings / numSpringThreads + 1;
 
     // int springThreads = 100;
@@ -166,7 +166,7 @@ int main() {
 
     while (t < limit) {
         float adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, adjust, numPoints);
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, adjust, numSprings);
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, s_d, ps_d, numPoints);
         t += dt;
     }
@@ -180,9 +180,9 @@ int main() {
 
     Point *ps = (Point *)malloc(points.size() * sizeof(Point));
     cudaMemcpy(ps, p_d, points.size() * sizeof(Point), cudaMemcpyDeviceToHost);
-    for (int i = 0; i < points.size(); i++) {
-    	printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
-    }
+    //for (int i = 0; i < points.size(); i++) {
+    //	printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
+    //}
     
     cudaFree(p_d);
     cudaFree(s_d);
