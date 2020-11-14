@@ -28,8 +28,8 @@ struct Spring {
 const double kSpring = 500.0;
 const double kGround = 100000.0;
 const double kOscillationFrequency = 0;//10000;//100000
-const double kDropHeight = 0.2;
-const int kNumPerSide = 2;
+const double kDropHeight = 0;
+const int kNumPerSide = 10;
 const double staticFriction = 0.5;
 const double kineticFriction = 0.3;
 const double dt = 0.0001;
@@ -109,26 +109,25 @@ int main() {
             Point p1 = points[p1index];
             Point p2 = points[p2index];
 
-            double p1x = p1.x;
-            double p1y = p1.y;
-            double p1z = p1.z;
-            double p2x = p2.x;
-            double p2y = p2.y;
-            double p2z = p2.z;
-            double dist = sqrt(pow(p1x - p2x, 2) + pow(p1y - p2y, 2) + pow(p1z - p2z, 2));
+            double xd = p1.x - p2.x;
+            double yd = p1.y - p2.y;
+            double zd = p1.z - p2.z;
+            double dist = sqrt(xd * xd + yd * yd + zd * zd);
 
             // negative if repelling, positive if attracting
             double f = l.k * (dist - (l.l0 * adjust));
+            double fd = f / dist;
             // distribute force across the axes
-            double dx = f * (p1x - p2x) / dist;
+            double dx = xd * fd;
+            double dy = yd * fd;
+            double dz = zd * fd;
+
             points[p1index].fx -= dx;
             points[p2index].fx += dx;
 
-            double dy = f * (p1y - p2y) / dist;
             points[p1index].fy -= dy;
             points[p2index].fy += dy;
 
-            double dz = f * (p1z - p2z) / dist;
             points[p1index].fz -= dz;
             points[p2index].fz += dz;
         }
@@ -151,9 +150,9 @@ int main() {
                     fx = 0;
                     fz = 0;
                 } else {
-                    double fykinetic = abs(fy * kineticFriction);
-                    fx = fx - fx / fh * fykinetic;
-                    fz = fz - fz / fh * fykinetic;
+                    double fykinetic = abs(fy * kineticFriction) * fh;
+                    fx = fx - fx / fykinetic;
+                    fz = fz - fz / fykinetic;
                 }
                 fy += -kGround * y;
             }
@@ -181,9 +180,9 @@ int main() {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
-    for (int i = 0; i < points.size(); i++) {
-        printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
-    }
+    //for (int i = 0; i < points.size(); i++) {
+    //    printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
+    //}
 
     return 0;
 }

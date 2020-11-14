@@ -19,7 +19,6 @@ mutable struct Spring
     p1::Int # Index of first point
     p2::Int # Index of second point
     l0::Float64 # meters
-    currentl::Float64 # meters
 end
 
 function main()
@@ -83,7 +82,7 @@ function main()
                             push!(connected[p2index], p1index)
                             p2::Point = cache[x1][y1][z1]
                             length::Float64 = sqrt(abs2(p1.x - p2.x) + abs2(p1.y - p2.y) + abs2(p1.z - p2.z))
-                            push!(springs, Spring(kSpring, p1index, p2index, length, length))
+                            push!(springs, Spring(kSpring, p1index, p2index, length))
                         end
                     end
                 end
@@ -96,7 +95,7 @@ function main()
     dampening::Float64 = 1 - (dt * 5)
     gravity::Float64 = -9.81
 
-    limit::Float64 = 1
+    limit::Float64 = 5
     println("num springs evaluated: ", size(springs)[1])
     println("time multiplier: ",  limit / dt)
 
@@ -106,20 +105,18 @@ function main()
             for l in springs
                 p1::Point = points[l.p1]
                 p2::Point = points[l.p2]
-                p1x = p1.x
-                p1y = p1.y
-                p1z = p1.z
-                p2x = p2.x
-                p2y = p2.y
-                p2z = p2.z
-                dist::Float64 = sqrt(abs2(p1x - p2x) + abs2(p1y - p2y) + abs2(p1z - p2z))
+                xd::Float64 = p1.x - p2.x;
+                yd::Float64 = p1.y - p2.y;
+                zd::Float64 = p1.z - p2.z;
+                dist::Float64 = sqrt(xd * xd + yd * yd + zd * zd)
 
                 # negative if repelling, positive if attracting
                 f::Float64 = l.k * (dist - (l.l0 * adjust))
                 # distribute force across the axes
-                dx::Float64 = f * (p1x - p2x) / dist
-                dy::Float64 = f * (p1y - p2y) / dist
-                dz::Float64 = f * (p1z - p2z) / dist
+                fdist::Float64 = f / dist
+                dx::Float64 = fdist * xd
+                dy::Float64 = fdist * yd
+                dz::Float64 = fdist * zd
 
                 p1.fx -= dx
                 p2.fx += dx
@@ -139,7 +136,7 @@ function main()
 
                 if p.y < 0
                     fy += -kGround * p.y
-                    fh::Float64 = sqrt(abs2(fx) + abs2(fz))
+                    fh::Float64 = sqrt(fx * fx + fz * fz)
                     if fh < abs(fy * staticFriction)
                         fx = 0
                         fz = 0
