@@ -1,5 +1,4 @@
 using Printf
-using Juno
 
 mutable struct Point
     x::Float64 # meters
@@ -22,6 +21,7 @@ mutable struct Spring
 end
 
 function main()
+    kNumPerSide::Int64 = 2
     kSpring::Float64 = 500.0
     kGround::Float64 = 100000.0
     kOscillationFrequency::Float64 = 0#10000.0
@@ -33,9 +33,9 @@ function main()
     cache::Dict{Int64, Dict{Int64, Dict{Int64, Point}}} = Dict()
 
     # Create the points
-    for x = 1:10
-        for y = 1:10
-            for z = 1:10
+    for x = 1:kNumPerSide
+        for y = 1:kNumPerSide
+            for z = 1:kNumPerSide
                 # (0,0,0) or (0.1,0.1,0.1) and all combinations
                 p::Point = Point(x / 10.0, kDropHeight + y / 10.0, z / 10.0, 0, 0, 0, 0.1, 0, 0, 0)
                 push!(points, p)
@@ -52,27 +52,27 @@ function main()
 
     connected::Dict{Int64, Array{Int64}} = Dict()
     #Create the springs
-    for x = 1:10
-        for y = 1:10
-            for z = 1:10
-                p1index::Int = z + 10 * (y - 1) + 100 * (x - 1)
+    for x = 1:kNumPerSide
+        for y = 1:kNumPerSide
+            for z = 1:kNumPerSide
+                p1index::Int = z + kNumPerSide * (y - 1) + kNumPerSide * kNumPerSide * (x - 1)
                 if !haskey(connected, p1index)
                     connected[p1index] = []
                 end
                 p1::Point = cache[x][y][z]
                 for x1 = (x - 1):(x+1)
-                    if x1 == 11 || x1 <= 0
+                    if x1 == kNumPerSide + 1 || x1 <= 0
                         continue
                     end
                     for y1 = (y - 1):(y+1)
-                        if y1 == 11 || y1 <= 0
+                        if y1 == kNumPerSide + 1 || y1 <= 0
                             continue
                         end
                         for z1 = z:(z+1)
-                            if z1 == 11 || z1 <= 0 || (x1 == x && y1 == y && z1 == z)
+                            if z1 == kNumPerSide + 1 || z1 <= 0 || (x1 == x && y1 == y && z1 == z)
                                 continue
                             end
-                            p2index::Int = z1 + 10 * (y1 - 1) + 100 * (x1 - 1)
+                            p2index::Int = z1 + kNumPerSide * (y1 - 1) + kNumPerSide * kNumPerSide * (x1 - 1)
                             if !haskey(connected, p2index)
                                 connected[p2index] = []
                             elseif p2index in connected[p1index]
@@ -162,6 +162,9 @@ function main()
             end
             t += dt
         end
+    end
+    for p in points
+        println(p.x, ",", p.y, ",", p.z)
     end
 end
 

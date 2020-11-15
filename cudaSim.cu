@@ -24,6 +24,11 @@ struct Spring {
   int p1; // Index of first point
   int p2; // Index of second point
   float l0; // meters
+  int p1NumSpring;
+  int p2NumSpring;
+};
+
+struct SpringDelta {
   float dx;
   float dy;
   float dz;
@@ -31,8 +36,7 @@ struct Spring {
 
 void genPointsAndSprings(
 	std::vector<Point> &points,
-	std::vector<Spring> &springs,
-	std::vector<int> &pointSprings);
+	std::vector<Spring> &springs);
 
 #define maxSprings 28
 #define staticFriction 0.5
@@ -41,12 +45,12 @@ void genPointsAndSprings(
 #define dampening 0.9995
 #define gravity -9.81
 #define kSpring 500.0
-#define kGround 100000.0
+#define kGround -100000.0
 const float kOscillationFrequency = 0;
-const float kDropHeight = 0.2;
-const int pointsPerSide = 60;
+const float kDropHeight = 1;
+const int pointsPerSide = 21;
 
-__global__ void update_spring(Point *points, Spring *springs, float adjust, int n) {
+__global__ void update_spring(Point *points, Spring *springs, SpringDelta *springDeltas, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
 
@@ -65,12 +69,15 @@ __global__ void update_spring(Point *points, Spring *springs, float adjust, int 
 
     float fd = f / dist;
 
-    springs[i].dx = fd * dx;
-    springs[i].dy = fd * dy;
-    springs[i].dz = fd * dz;
+    float xd = fd * dx;
+    float yd = fd * dy;
+    float zd = fd * dz;
+
+    springDeltas[s.p1 * maxSprings + s.p1NumSpring] = {-xd, -yd, -zd};
+    springDeltas[s.p2 * maxSprings + s.p2NumSpring] = {xd, yd, zd};
 }
 
-__global__ void update_point(Point *points, Spring *springs, int *pointsToSprings, int n) {
+__global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
 
@@ -81,19 +88,13 @@ __global__ void update_point(Point *points, Spring *springs, int *pointsToSpring
     float fx = 0;
     float fz = 0;
     float fy = gravity * mass;
+    int iTMS = i * maxSprings;
     for (int j = 0; j < numSprings; j++) {
-    	int springIndex = pointsToSprings[i * maxSprings + j];
-        Spring s = springs[springIndex];
+        SpringDelta sd = springDeltas[iTMS + j];
 
-	    if (s.p1 == i) {
-	    	fx -= s.dx;
-	    	fy -= s.dy;
-	    	fz -= s.dz;
-		} else {
-			fx += s.dx;
-	    	fy += s.dy;
-	    	fz += s.dz;
-		}
+		fx += sd.dx;
+    	fy += sd.dy;
+    	fz += sd.dz;
 	}
     float y = p.y;
     float vx = p.vx;
@@ -107,11 +108,11 @@ __global__ void update_point(Point *points, Spring *springs, int *pointsToSpring
             fx = 0;
             fz = 0;
         } else {
-            float fykinetic = abs(fy * kineticFriction) * fh;
-            fx = fx - fx / fykinetic;
-            fz = fz - fz / fykinetic;
+            float fykinetic = abs(fy * kineticFriction) / fh;
+            fx = fx - fx * fykinetic;
+            fz = fz - fz * fykinetic;
         }
-        fy += -kGround * y;
+        fy += kGround * y;
     }
     float ax = fx / mass;
     float ay = fy / mass;
@@ -132,42 +133,39 @@ __global__ void update_point(Point *points, Spring *springs, int *pointsToSpring
 int main() {
     std::vector<Point> points;
     std::vector<Spring> springs;
-    std::vector<int> pointSprings(pointsPerSide * pointsPerSide * pointsPerSide * maxSprings, 0);
+    std::vector<SpringDelta> pointSprings(pointsPerSide * pointsPerSide * pointsPerSide * maxSprings, {0,0,0});
 
-    genPointsAndSprings(points, springs, pointSprings);
+    genPointsAndSprings(points, springs);
 
     Point *p_d;
     Spring *s_d;
-    int *ps_d;
+    SpringDelta *ps_d;
     cudaMalloc(&p_d, points.size() * sizeof(Point));
     cudaMemcpy(p_d, &points[0], points.size() * sizeof(Point), cudaMemcpyHostToDevice);
 
     cudaMalloc(&s_d, springs.size() * sizeof(Spring));
     cudaMemcpy(s_d, &springs[0], springs.size() * sizeof(Spring), cudaMemcpyHostToDevice);
 
-    cudaMalloc(&ps_d, pointSprings.size() * sizeof(int));
-    cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(int),  cudaMemcpyHostToDevice);
+    cudaMalloc(&ps_d, pointSprings.size() * sizeof(SpringDelta));
+    cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta),  cudaMemcpyHostToDevice);
 
     double t = 0;
-    // 60 fps - 0.000166
-    double limit = 1;
+    double limit = 5;
     int numPoints = points.size();
     int numPointThreads = 12;
     int numPointBlocks = numPoints / numPointThreads + 1;
   
-  	int numSprings = (int)springs.size();
+  	int numSprings = springs.size();
     int numSpringThreads = 25;
     int numSpringBlocks = numSprings / numSpringThreads + 1;
 
-    // int springThreads = 100;
-    int springBlocks = (int)ceil(numSprings / 100.0);
-    printf("num springs evaluated: %lld\n", long long int(limit / dt * numSprings));
+    printf("num springs evaluated: %lld, %d\n", long long int(limit / dt * numSprings), numSprings);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     while (t < limit) {
         float adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, adjust, numSprings);
-        update_point<<<numPointBlocks, numPointThreads>>>(p_d, s_d, ps_d, numPoints);
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, adjust, numSprings);
+        update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
         t += dt;
     }
 
@@ -180,9 +178,9 @@ int main() {
 
     Point *ps = (Point *)malloc(points.size() * sizeof(Point));
     cudaMemcpy(ps, p_d, points.size() * sizeof(Point), cudaMemcpyDeviceToHost);
-    //for (int i = 0; i < points.size(); i++) {
-    //	printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
-    //}
+    for (int i = 0; i < 8; i++) {
+    	printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
+    }
     
     cudaFree(p_d);
     cudaFree(s_d);
@@ -194,8 +192,7 @@ int main() {
 
 void genPointsAndSprings(
 	std::vector<Point> &points,
-	std::vector<Spring> &springs,
-	std::vector<int> &pointSprings) {
+	std::vector<Spring> &springs) {
 
     for (int x = 0; x < pointsPerSide; x++) {
         for (int y = 0; y < pointsPerSide; y++) {
@@ -243,16 +240,11 @@ void genPointsAndSprings(
 
                             Point p2 = points[p2index];
                             float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
-                            Spring s = {kSpring, p1index, p2index, length, 0, 0, 0};
-                            int springIndex = springs.size();
+                            Spring s = {kSpring, p1index, p2index, length, p1.numSprings, p2.numSprings};
                             springs.push_back(s);
-                            int ppsIndex1 = p1index * maxSprings + p1.numSprings;
-                            int ppsIndex2 = p2index * maxSprings + p2.numSprings;
-                            pointSprings[ppsIndex1] = springIndex;
-                            pointSprings[ppsIndex2] = springIndex;
                             points[p1index].numSprings += 1;
                             points[p2index].numSprings += 1;
-                            p1.numSprings += 1; // this is a reference so also increment here
+                            p1.numSprings += 1;
                         }
                     }
                 }

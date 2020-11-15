@@ -26,10 +26,10 @@ struct Spring {
 };
 
 const double kSpring = 500.0;
-const double kGround = 100000.0;
+const double kGround = -100000.0;
 const double kOscillationFrequency = 0;//10000;//100000
-const double kDropHeight = 0;
-const int kNumPerSide = 10;
+const double kDropHeight = 0.2;
+const int kNumPerSide = 2;
 const double staticFriction = 0.5;
 const double kineticFriction = 0.3;
 const double dt = 0.0001;
@@ -144,17 +144,17 @@ int main() {
             double vz = p.vz;
 
             if (y <= 0) {
-                double fh = sqrt(pow(fx, 2) + pow(fz, 2));
+                double fh = sqrt(fx * fx + fz * fz);
                 double fyfric = abs(fy * staticFriction);
                 if (fh < fyfric) {
                     fx = 0;
                     fz = 0;
                 } else {
-                    double fykinetic = abs(fy * kineticFriction) * fh;
-                    fx = fx - fx / fykinetic;
-                    fz = fz - fz / fykinetic;
+                    double fykinetic = abs(fy * kineticFriction) / fh;
+                    fx = fx - fx * fykinetic;
+                    fz = fz - fz * fykinetic;
                 }
-                fy += -kGround * y;
+                fy += kGround * y;
             }
             double ax = fx / mass;
             double ay = fy / mass;
@@ -180,9 +180,9 @@ int main() {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
-    //for (int i = 0; i < points.size(); i++) {
-    //    printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
-    //}
+    for (int i = 0; i < points.size(); i++) {
+        printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
+    }
 
     return 0;
 }

@@ -1,7 +1,7 @@
 using Printf
 using Profile
-using Juno
 using CUDA
+using BenchmarkTools
 
 struct Point
     x::Float32 # meters
@@ -29,14 +29,14 @@ const kSpring = 500.0
 const kGround = 100000.0
 const kOscillationFrequency = 0
 const kDropHeight = 0.2
-const kNumSide = 10
+const kNumSide = 60
 const staticFriction = 0.5
 const kineticFriction = 0.3
 const dt = 0.0001
 const dampening = 0.9995
 const gravity = -9.81
 
-function main()
+function main(limit::Float64)
     t::Float64 = 0.0
     points::Array{Point} = []
     springs::Array{Spring} = []
@@ -101,69 +101,99 @@ function main()
         end
     end
     
-    numSprings::Int32 = size(springs)[1]
-    numPoints::Int32 = size(points)[1]
+    numSprings::Int32 = length(springs)
+    numPoints::Int32 = length(points)
 
+    springThreads::Int64 = 25
+    springBlocks::Int64 = ceil(numSprings / springThreads)
+    pointThreads::Int64 = 12
+    pointBlocks::Int64 = ceil(numPoints / pointThreads)
 
     points_d = CuArray(points)
     springs_d = CuArray(springs)
     springIndices_d = CuArray(springIndices)
 
-    limit::Float64 = 5
     println("num springs evaluated: ", numSprings)
     println("time multiplier: ",  limit / dt)
+
+    println("Warming cache")
+    @cuda threads=springThreads blocks=springBlocks updateSprings(points_d, springs_d, Float32(0.0), numSprings)
+    @cuda threads=pointThreads blocks=pointBlocks updatePoints(points_d, springs_d, springIndices_d, numPoints)
+    CUDA.@time @cuda threads=springThreads blocks=springBlocks updateSprings(points_d, springs_d, Float32(0.0), numSprings)
+    CUDA.@time @cuda threads=pointThreads blocks=pointBlocks updatePoints(points_d, springs_d, springIndices_d, numPoints)
+    @cuda threads=pointThreads blocks=pointBlocks updatePoints(points_d, springs_d, springIndices_d, numPoints)
+    points_d = CuArray(points)
+    springs_d = CuArray(springs)
+    springIndices_d = CuArray(springIndices)
+    synchronize()
+    println("Starting")
 
     @time begin
         while t < limit
             adjust::Float32 = 1 + sin(t * kOscillationFrequency) * 0.1
 
-            @cuda updateSprings(points_d, springs_d, adjust, numSprings)
-            @cuda updatePoints(points_d, springs_d, springIndices_d, numPoints)
+            @cuda threads=springThreads blocks=springBlocks updateSprings(points_d, springs_d, adjust, numSprings)
+            @cuda threads=pointThreads blocks=pointBlocks updatePoints(points_d, springs_d, springIndices_d, numPoints)
             
             t += dt
         end
+        synchronize()
     end
-    points = Array(points_d)
-    println(points[1].x, ",", points[1].y, ",", points[1].z)
+    ps::Array{Point} = Array(points_d)
+    println(ps[1].y)
+    #for p in ps
+    #    println(p.x, ",", p.y, ",", p.z)
+    #end
 end
 
-function updateSprings(points::Array{Point}, springs::Array{Spring}, adjust::Float32, n::Float32)
+function updateSprings(points::CuDeviceArray{Point}, springs::CuDeviceArray{Spring}, adjust::Float32, n::Int32)
     i::Int32 = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    if i > n
+        return
+    end
     l::Spring = springs[i]
+    p1index::Int32 = l.p1
+    p2index::Int32 = l.p2
 
-    p1::Point = points[l.p1]
-    p2::Point = points[l.p2]
-    k::Float32 = l.k
+    p1::Point = points[p1index]
+    p2::Point = points[p2index]
+
     l0::Float32 = l.l0
-
+    k::Float32 = l.k
     px::Float32 = p1.x - p2.x
     py::Float32 = p1.y - p2.y
     pz::Float32 = p1.z - p2.z
 
-    dist::Float32 = sqrt(abs2(px) + abs2(py) + abs2(pz))
+    dist::Float32 = sqrt(px * px + py * py + pz * pz)
 
     # negative if repelling, positive if attracting
-    f::Float32 = k * (dist - (l.l0 * adjust))
+    f::Float32 = k * (dist - (l0 * adjust))
     # distribute force across the axes
     fdist::Float32 = f / dist
     dx::Float32 = fdist * px
     dy::Float32 = fdist * py
     dz::Float32 = fdist * pz
     
-    springs[i] = Spring(k, l.p1, l.p2, l0, dx, dy, dz)
+    springs[i] = Spring(k, p1index, p2index, l0, dx, dy, dz)
+
+    return nothing
 end
 
-function updatePoints(points::Array{Point}, springs::Array{Spring}, springIndices::Array{Int32}, n::Int32)
+function updatePoints(points::CuDeviceArray{Point}, springs::CuDeviceArray{Spring}, springIndices::CuDeviceArray{Int32}, n::Int32)
     i::Int32 = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    if i > n
+        return
+    end
     p::Point = points[i]
 
     fy = gravity * p.mass
     fx = 0
     fz = 0
 
+    iTMS::Int32 = (i - 1) * kMaxSprings
+
     for j in 1:p.numSprings
-        springIndex::Int32 = springIndices[(i - 1) * kMaxSprings + j]
-        s::Spring = springs[springIndex]
+        s::Spring = springs[springIndices[iTMS + j]]
 
         if s.p1 == i
             fx -= s.dx
@@ -178,7 +208,7 @@ function updatePoints(points::Array{Point}, springs::Array{Spring}, springIndice
 
     if p.y < 0
         fy += -kGround * p.y
-        fh::Float32 = sqrt(abs2(fx) + abs2(fz))
+        fh::Float32 = sqrt(fx * fx + fz * fz)
         if fh < abs(fy * staticFriction)
             fx = 0
             fz = 0
@@ -198,7 +228,9 @@ function updatePoints(points::Array{Point}, springs::Array{Spring}, springIndice
     y::Float32 = p.y + p.vy * dt
     z::Float32 = p.z + p.vz * dt
     points[i] = Point(x, y, z, vx, vy, vz, p.mass, p.numSprings)
+
+    return nothing
 end
 
-main()
+main(0.1)
 #@profile main()
