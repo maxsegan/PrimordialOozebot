@@ -17,6 +17,7 @@ struct Point {
   float vz; // meters/second
   float mass; // kg
   int numSprings; // Int - hack for CUDA ease
+  int springDeltaIndex;
 };
 
 struct Spring {
@@ -38,7 +39,6 @@ void genPointsAndSprings(
 	std::vector<Point> &points,
 	std::vector<Spring> &springs);
 
-#define maxSprings 28
 #define staticFriction 0.5
 #define kineticFriction 0.3
 #define dt 0.0001
@@ -73,8 +73,8 @@ __global__ void update_spring(Point *points, Spring *springs, SpringDelta *sprin
     float yd = fd * dy;
     float zd = fd * dz;
 
-    springDeltas[s.p1 * maxSprings + s.p1NumSpring] = {-xd, -yd, -zd};
-    springDeltas[s.p2 * maxSprings + s.p2NumSpring] = {xd, yd, zd};
+    springDeltas[p1.springDeltaIndex + s.p1NumSpring] = {-xd, -yd, -zd};
+    springDeltas[p2.springDeltaIndex + s.p2NumSpring] = {xd, yd, zd};
 }
 
 __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
@@ -88,9 +88,9 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     float fx = 0;
     float fz = 0;
     float fy = gravity * mass;
-    int iTMS = i * maxSprings;
+    int startIndex = p.springDeltaIndex;
     for (int j = 0; j < numSprings; j++) {
-        SpringDelta sd = springDeltas[iTMS + j];
+        SpringDelta sd = springDeltas[startIndex + j];
 
 		fx += sd.dx;
     	fy += sd.dy;
@@ -133,9 +133,9 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
 int main() {
     std::vector<Point> points;
     std::vector<Spring> springs;
-    std::vector<SpringDelta> pointSprings(pointsPerSide * pointsPerSide * pointsPerSide * maxSprings, {0,0,0});
 
     genPointsAndSprings(points, springs);
+    std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
 
     Point *p_d;
     Spring *s_d;
@@ -201,7 +201,7 @@ void genPointsAndSprings(
                 float px = x / 10.0;
                 float py = y / 10.0 + kDropHeight;
                 float pz = z / 10.0;
-                Point p = {px, py, pz, 0, 0, 0, 0.1, 0};
+                Point p = {px, py, pz, 0, 0, 0, 0.1, 0, 0};
                 points.push_back(p);
             }
         }
@@ -250,5 +250,10 @@ void genPointsAndSprings(
                 }
             }
         }
+    }
+    int springDeltaIndex  = 0;
+    for (int i = 0; i < points.size(); i++) {
+        points[i].springDeltaIndex = springDeltaIndex;
+        springDeltas += points[i].numSprings;
     }
 }

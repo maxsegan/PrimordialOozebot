@@ -13,7 +13,7 @@ let kSpring: Double = 500.0
 let kGround: Double = 100000.0
 let kOscillationFrequency: Double = 0//10000//100000
 let kUseTetrahedron = false
-let kDropHeight: Double = 0.2
+let kDropHeight: Double = 1
 let kUseThousand = false
 let kNoRender = true
 
