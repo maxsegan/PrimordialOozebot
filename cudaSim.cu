@@ -25,8 +25,8 @@ struct Spring {
   int p1; // Index of first point
   int p2; // Index of second point
   float l0; // meters
-  int p1NumSpring;
-  int p2NumSpring;
+  int p1SpringIndex;
+  int p2SpringIndex;
 };
 
 struct SpringDelta {
@@ -47,8 +47,8 @@ void genPointsAndSprings(
 #define kSpring 500.0
 #define kGround -100000.0
 const float kOscillationFrequency = 0;
-const float kDropHeight = 1;
-const int pointsPerSide = 21;
+const float kDropHeight = 0.2;
+const int pointsPerSide = 20;
 
 __global__ void update_spring(Point *points, Spring *springs, SpringDelta *springDeltas, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -73,8 +73,8 @@ __global__ void update_spring(Point *points, Spring *springs, SpringDelta *sprin
     float yd = fd * dy;
     float zd = fd * dz;
 
-    springDeltas[p1.springDeltaIndex + s.p1NumSpring] = {-xd, -yd, -zd};
-    springDeltas[p2.springDeltaIndex + s.p2NumSpring] = {xd, yd, zd};
+    springDeltas[p1.springDeltaIndex + s.p1SpringIndex] = {-xd, -yd, -zd};
+    springDeltas[p2.springDeltaIndex + s.p2SpringIndex] = {xd, yd, zd};
 }
 
 __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
@@ -147,7 +147,7 @@ int main() {
     cudaMemcpy(s_d, &springs[0], springs.size() * sizeof(Spring), cudaMemcpyHostToDevice);
 
     cudaMalloc(&ps_d, pointSprings.size() * sizeof(SpringDelta));
-    cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta),  cudaMemcpyHostToDevice);
+    cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaMemcpyHostToDevice);
 
     double t = 0;
     double limit = 5;
@@ -254,6 +254,6 @@ void genPointsAndSprings(
     int springDeltaIndex  = 0;
     for (int i = 0; i < points.size(); i++) {
         points[i].springDeltaIndex = springDeltaIndex;
-        springDeltas += points[i].numSprings;
+        springDeltaIndex += points[i].numSprings;
     }
 }
