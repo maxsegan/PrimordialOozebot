@@ -48,7 +48,7 @@ void genPointsAndSprings(
 #define kGround -100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 120;
+const int pointsPerSide = 80;
 
 __global__ void update_spring(Point *points, Spring *springs, SpringDelta *springDeltas, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -150,7 +150,7 @@ int main() {
     cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaMemcpyHostToDevice);
 
     double t = 0;
-    double limit = 5;
+    double limit = 1;
     int numPoints = points.size();
     int numPointThreads = 12;
     int numPointBlocks = numPoints / numPointThreads + 1;
