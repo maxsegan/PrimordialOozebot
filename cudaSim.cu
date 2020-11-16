@@ -48,7 +48,7 @@ void genPointsAndSprings(
 #define kGround -100000.0
 const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 80;
+const int pointsPerSide = 40;
 
 __global__ void update_spring(Point *points, Spring *springs, SpringDelta *springDeltas, float adjust, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -87,14 +87,15 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     float fx = 0;
     float fz = 0;
     float fy = gravity * mass;
-    SpringDelta *sd = &springDeltas[p.springDeltaIndex];
-    SpringDelta *last = sd + p.numSprings;
-    do {
-        fx += sd.dx;
-        fy += sd.dy;
-        fz += sd.dz;
-        sd += 1;
-    } while (sd <= last);
+    int startIndex = p.springDeltaIndex;
+    int done = p.numSprings + startIndex;
+    for (int j = startIndex; j < done; j++) {
+        SpringDelta sd = springDeltas[j];
+
+		fx += sd.dx;
+    	fy += sd.dy;
+    	fz += sd.dz;
+	}
 
     float y = p.y;
     float vx = p.vx;
