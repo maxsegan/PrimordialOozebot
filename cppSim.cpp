@@ -29,7 +29,7 @@ const double kSpring = 500.0;
 const double kGround = -100000.0;
 const double kOscillationFrequency = 0;//10000;//100000
 const double kDropHeight = 0.2;
-const int kNumPerSide = 2;
+const int kNumPerSide = 10;
 const double staticFriction = 0.5;
 const double kineticFriction = 0.3;
 const double dt = 0.0001;
@@ -101,8 +101,8 @@ int main() {
 
     while (t < limit) {
         double adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        for (int i = 0; i < springs.size(); i++) {
-            Spring l = springs[i];
+        for (std::vector<Spring>::iterator i = springs.begin(); i != springs.end(); ++i) {
+            Spring l = *i;
 
             int p1index = l.p1;
             int p2index = l.p2;
@@ -131,8 +131,8 @@ int main() {
             points[p1index].fz -= dz;
             points[p2index].fz += dz;
         }
-        for (int i = 0; i < points.size(); i++) {
-            Point p = points[i];
+        for (std::vector<Point>::iterator i = points.begin(); i != points.end(); ++i) {
+            Point p = *i;
         
             double mass = p.mass;
             double fy = p.fy + gravity * mass;
@@ -164,15 +164,15 @@ int main() {
             p.fy = 0;
             p.fz = 0;
             vx = (ax * dt + vx) * dampening;
-            p.vx = vx;
             vy = (ay * dt + vy) * dampening;
-            p.vy = vy;
             vz = (az * dt + vz) * dampening;
+            p.vx = vx;
+            p.vy = vy;
             p.vz = vz;
             p.x += vx * dt;
             p.y += vy * dt;
             p.z += vz * dt;
-            points[i] = p;
+            *i = p;
         }
         t += dt;
     }
@@ -180,7 +180,7 @@ int main() {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
-    for (int i = 0; i < points.size(); i++) {
+    for (int i = 0; i < 8; i++) {
         printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
     }
 

@@ -82,20 +82,20 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     if (i >= n) return;
 
     Point p = points[i];
-    int numSprings = p.numSprings;
 
 	float mass = p.mass;
     float fx = 0;
     float fz = 0;
     float fy = gravity * mass;
-    int startIndex = p.springDeltaIndex;
-    for (int j = 0; j < numSprings; j++) {
-        SpringDelta sd = springDeltas[startIndex + j];
+    SpringDelta *sd = &springDeltas[p.springDeltaIndex];
+    SpringDelta *last = sd + p.numSprings;
+    do {
+        fx += sd.dx;
+        fy += sd.dy;
+        fz += sd.dz;
+        sd += 1;
+    } while (sd <= last);
 
-		fx += sd.dx;
-    	fy += sd.dy;
-    	fz += sd.dz;
-	}
     float y = p.y;
     float vx = p.vx;
     float vy = p.vy;
