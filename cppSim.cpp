@@ -1,33 +1,12 @@
+#include "cppSim.h"
 #include <algorithm>
 #include <iostream>
 #include <math.h>
-#include <vector>
 #include <map>
 #include <chrono>
 
-struct Point {
-  double x; // meters
-  double y; // meters
-  double z; // meters
-  double vx; // meters/second
-  double vy; // meters/second
-  double vz; // meters/second
-  double mass; // kg
-  double fx; // N - reset every iteration
-  double fy; // N
-  double fz; // N
-};
-
-struct Spring {
-  double k; // N/m
-  int p1; // Index of first point
-  int p2; // Index of second point
-  double l0; // meters
-};
-
 const double kSpring = 500.0;
 const double kGround = -100000.0;
-const double kOscillationFrequency = 0;//10000;//100000
 const double kDropHeight = 0.2;
 const int kNumPerSide = 10;
 const double staticFriction = 0.5;
@@ -93,34 +72,47 @@ int main() {
   
     // 60 fps - 0.000166
     const double limit = 5;
-    double t = 0;
-    long long int numSprings = springs.size();
+    const long long int numSprings = springs.size();
     long long int y = (long long int)(limit / dt * numSprings);
     printf("num springs evaluated: %lld\n", y);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    while (t < limit) {
-        double adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
+    simulate(points, springs, limit, 0);
+
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
+    for (int i = 0; i < 8; i++) {
+        printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
+    }
+
+    return 0;
+}
+
+void simulate(std::vector<Point> &points, std::vector<Spring> &springs, double n, double oscillationFrequency) {
+    double t = 0;
+    while (t < n) {
+        double adjust = 1 + sin(t * oscillationFrequency) * 0.1;
         for (std::vector<Spring>::iterator i = springs.begin(); i != springs.end(); ++i) {
             Spring l = *i;
 
-            int p1index = l.p1;
-            int p2index = l.p2;
+            const int p1index = l.p1;
+            const int p2index = l.p2;
             Point p1 = points[p1index];
             Point p2 = points[p2index];
 
-            double xd = p1.x - p2.x;
-            double yd = p1.y - p2.y;
-            double zd = p1.z - p2.z;
-            double dist = sqrt(xd * xd + yd * yd + zd * zd);
+            const double xd = p1.x - p2.x;
+            const double yd = p1.y - p2.y;
+            const double zd = p1.z - p2.z;
+            const double dist = sqrt(xd * xd + yd * yd + zd * zd);
 
             // negative if repelling, positive if attracting
-            double f = l.k * (dist - (l.l0 * adjust));
-            double fd = f / dist;
+            const double f = l.k * (dist - (l.l0 * adjust));
+            const double fd = f / dist;
             // distribute force across the axes
-            double dx = xd * fd;
-            double dy = yd * fd;
-            double dz = zd * fd;
+            const double dx = xd * fd;
+            const double dy = yd * fd;
+            const double dz = zd * fd;
 
             points[p1index].fx -= dx;
             points[p2index].fx += dx;
@@ -134,31 +126,31 @@ int main() {
         for (std::vector<Point>::iterator i = points.begin(); i != points.end(); ++i) {
             Point p = *i;
         
-            double mass = p.mass;
+            const double mass = p.mass;
+            const double y = p.y;
             double fy = p.fy + gravity * mass;
             double fx = p.fx;
             double fz = p.fz;
-            double y = p.y;
             double vx = p.vx;
             double vy = p.vy;
             double vz = p.vz;
 
             if (y <= 0) {
                 double fh = sqrt(fx * fx + fz * fz);
-                double fyfric = abs(fy * staticFriction);
+                const double fyfric = abs(fy * staticFriction);
                 if (fh < fyfric) {
                     fx = 0;
                     fz = 0;
                 } else {
-                    double fykinetic = abs(fy * kineticFriction) / fh;
+                    const double fykinetic = abs(fy * kineticFriction) / fh;
                     fx = fx - fx * fykinetic;
                     fz = fz - fz * fykinetic;
                 }
                 fy += kGround * y;
             }
-            double ax = fx / mass;
-            double ay = fy / mass;
-            double az = fz / mass;
+            const double ax = fx / mass;
+            const double ay = fy / mass;
+            const double az = fz / mass;
             // reset the force cache
             p.fx = 0;
             p.fy = 0;
@@ -176,13 +168,4 @@ int main() {
         }
         t += dt;
     }
-
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
-    for (int i = 0; i < 8; i++) {
-        printf("p[%d].x = %f, y = %f, z = %f\n", i, points[i].x, points[i].y, points[i].z);
-    }
-
-    return 0;
 }
