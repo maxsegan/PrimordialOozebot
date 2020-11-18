@@ -1,6 +1,11 @@
 #include "ParetoFront.h"
+#include <vector>
 #include <algorithm>
 #include <random>
+
+class ParetoFront {
+    std::vector<OozebotEncoding> encodingFront;
+};
 
 std::vector<OozebotEncoding> getRandomEncodings(ParetoFront front, size_t n) {
     std::vector<OozebotEncoding> out;

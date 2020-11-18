@@ -1,12 +1,10 @@
 #ifndef PARETO_FRONT_H
 #define PARETO_FRONT_H
 
-#include <vector>
+
 #include "OozebotEncoding.h"
 
-struct ParetoFront {
-    std::vector<OozebotEncoding> encodingFront;
-};
+class ParetoFront;
 
 std::vector<OozebotEncoding> getRandomEncodings(ParetoFront front, size_t n);
 
