@@ -89,10 +89,10 @@ int main() {
     return 0;
 }
 
-void simulate(std::vector<Point> &points, std::vector<Spring> &springs, double n, double oscillationFrequency) {
+void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> presets, double n, double oscillationFrequency) {
     double t = 0;
     while (t < n) {
-        double adjust = 1 + sin(t * oscillationFrequency) * 0.1;
+        double adjust = 1 + sin(t * oscillationFrequency) * 0.1; // TODO handle presets here
         for (std::vector<Spring>::iterator i = springs.begin(); i != springs.end(); ++i) {
             Spring l = *i;
 
