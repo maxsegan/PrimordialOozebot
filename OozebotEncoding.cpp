@@ -301,10 +301,74 @@ inline bool dominates(OozebotEncoding firstEncoding, OozebotEncoding secondEncod
     return firstEncoding.fitness > secondEncoding.fitness && firstEncoding.age > secondEncoding.age;
 }
 
+void layBlockAtPosition(
+    int x,
+    int y,
+    int z,
+    std::vector<Point> &points,
+    std::vector<Spring> &springs,
+    std::map<int, std::map<int, std::map<int, int>>> &pointLocationToIndexMap,
+    std::map<int, std::map<int, bool>> &pointIndexHasSpring,
+    std::vector<OozebotExpression> massCommands,
+    std::vector<OozebotExpression> springCommands,
+    OozebotExpression boxCommand) {
+    int i = 0;
+    std::vector<int> pointIndices;
+    // first make the points
+    for (int xi = x; xi < x + 2; xi++) {
+        for (int yi = y; yi < y + 2; yi++) {
+            for (int zi = z; zi < z + 2; zi++) {
+                if (pointLocationToIndexMap.find(xi) == pointLocationToIndexMap.end()) {
+                    std::map<int, std::map<int, int>> innerMap;
+                    pointLocationToIndexMap[xi] = innerMap;
+                }
+                std::map<int, std::map<int, int>> innerMap = pointLocationToIndexMap[xi];
+                if (innerMap.find(yi) == innerMap.end()) {
+                    std::map<int, int> innermostMap;
+                    pointLocationToIndexMap[xi][yi] = innermostMap;
+                }
+                std::map<int, int> innermostMap = pointLocationToIndexMap[xi][yi];
+                if (innermostMap.find(zi) != innermostMap.end()) {
+                    // It wasn't already there so we add it
+                    pointLocationToIndexMap[xi][yi][zi] = points.size();
+                    OozebotExpression pointExpression = massCommands[boxCommand.pointIdxs[i]];
+                    Point p = {xi / 10.0, yi / 10.0, zi / 10.0, 0, 0, 0, pointExpression.kg, 0, 0, 0};
+                    points.push_back(p);
+                }
+                pointIndices.push_back(pointLocationToIndexMap[xi][yi][zi]);
+                i++;
+            }
+        }
+    }
+    // now make the springs
+    i = 0;
+    for (auto it = pointIndices.begin(); it != pointIndices.end(); it++) {
+        for (auto iter = it + 1; iter != pointIndices.end(); iter++) {
+            // always index from smaller to bigger so we don't have to double bookkeep
+            int first = min(*it, *iter);
+            int second = max(*it, *iter);
+            if (pointIndexHasSpring.find(first) == pointIndexHasSpring.end()) {
+                std::map<int, bool> innerMap;
+                pointIndexHasSpring[first] = innerMap;
+            }
+            if (pointIndexHasSpring[first].find(second) == pointIndexHasSpring[first].end()) {
+                OozebotExpression springExpression = springCommands[boxCommand.springIdxs[i]];
+                Point p1 = points[first];
+                Point p2 = points[second];
+                double length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
+                Spring s = {springExpression.k, first, second, length, boxCommand.springIdxs[i]};
+                springs.push_back(s);
+            }
+            i++;
+        }
+    }
+}
+
 int recursiveBuildABot(
     std::vector<Point> &points,
     std::vector<Spring> &springs,
     std::map<int, std::map<int, std::map<int, int>>> &pointLocationToIndexMap,
+    std::map<int, std::map<int, bool>> &pointIndexHasSpring,
     std::vector<OozebotExpression> growthCommands,
     std::vector<OozebotExpression> massCommands,
     std::vector<OozebotExpression> springCommands,
@@ -328,6 +392,7 @@ int recursiveBuildABot(
                 &points,
                 &springs,
                 &pointLocationToIndexMap,
+                &pointIndexHasSpring,
                 encoding.growthCommands,
                 encoding.massCommands,
                 encoding.springCommands,
@@ -344,6 +409,7 @@ int recursiveBuildABot(
                 &points,
                 &springs,
                 &pointLocationToIndexMap,
+                &pointIndexHasSpring,
                 encoding.growthCommands,
                 encoding.massCommands,
                 encoding.springCommands,
@@ -360,8 +426,59 @@ int recursiveBuildABot(
         case OozebotExpressionType.layAndMove:
             std::vector<OozebotExpression> layAndMoveSequence = layAndMoveSequences[growthCommand.layAndMoveIdx];
             for (auto iter = layAndMoveSequence.begin(); iter != layAndMoveSequence.end(); ++iter) {
-                // TODO
+                OozebotExpression cmd = *it;
+                // First we lay the current block
+                layBlockAtPosition(x, y, z, &points, &springs, &pointLocationToIndexMap, &pointIndexHasSpring, massCommands, springCommands, boxCommands[cmd.blockIdx]);
 
+                // Now we move
+                OozebotDirection direction = cmd.direction;
+                switch direction {
+                    case OozebotDirection.up:
+                        if (invertY == false) {
+                            y += 1;
+                        } else {
+                            y -= 1;
+                        }
+                        break;
+                    case OozebotDirection.down:
+                        if (invertY == false) {
+                            y -= 1;
+                        } else {
+                            y += 1;
+                        }
+                        break;
+                    case OozebotDirection.left:
+                        if (invertZ == false) {
+                            z -= 1;
+                        } else {
+                            z += 1;
+                        }
+                        break;
+                    case OozebotDirection.right:
+                        if (invertZ == false) {
+                            z += 1;
+                        } else {
+                            z -= 1;
+                        }
+                        break;
+                    case OozebotDirection.forward:
+                        if (invertX == false) {
+                            x += 1;
+                        } else {
+                            x -= 1;
+                        }
+                        break;
+                    case OozebotDirection.back:
+                        if (invertX == false) {
+                            x -= 1;
+                        } else {
+                            x += 1;
+                        }
+                        break;
+                }
+                x = max(min(x, 100), -100);
+                y = max(min(y, 100), -100);
+                z = max(min(z, 100), -100);
                 minY = min(minY, y);
             }
 
@@ -369,6 +486,7 @@ int recursiveBuildABot(
                 &points,
                 &springs,
                 &pointLocationToIndexMap,
+                &pointIndexHasSpring,
                 encoding.growthCommands,
                 encoding.massCommands,
                 encoding.springCommands,
@@ -401,11 +519,13 @@ static SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     // All indexes are points in 3 space times 10 (position on tenth of a meter, index by integer)
     // Largest value is 100, smallest is -100 on each axis
     std::map<int, std::map<int, std::map<int, int>>> pointLocationToIndexMap;
+    std::map<int, std::map<int, bool>> pointIndexHasSpring;
 
     int minY = recursiveBuildABot(
         &points,
         &springs,
         &pointLocationToIndexMap,
+        &pointIndexHasSpring,
         encoding.growthCommands,
         encoding.massCommands,
         encoding.springCommands,
