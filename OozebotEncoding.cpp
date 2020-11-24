@@ -1,58 +1,18 @@
 #include <math.h>
 #include <algorithm>
+#include <map>
 
 #include "oozebotEncoding.h"
 #include "cppSim.h"
 
-const kNumMasses = 6;
-const kNumSprings = 10;
-const kNumBoxes = 6;
-const kMaxLayAndMoveSequences = 10;
-const kMaxGrowthCommands = 10;
-const kMaxLayAndMoveLength = 100;
+const int kNumMasses = 6;
+const int kNumSprings = 8;
+const int kNumBoxes = 6;
+const int kMaxLayAndMoveSequences = 10;
+const int kMaxGrowthCommands = 10;
+const int kMaxLayAndMoveLength = 100;
 
-enum OozebotExpressionType {
-    massDeclaration, // kg
-    springDeclaration, // k, a, b, c all declared together
-    boxDeclaration, // combination of springs and masses
-    symmetryScope, // creation commands within this scope are duplicated flipped along the x/y/z asis
-    fork, // same concept as symmetry scope but each split is independent TODO figure out the right way to encode this
-    // If a block already exists at this index it noops
-    layBlockAndMoveCursor, // Takes in a block idx and direction to move (up, down, left, right, forward, back)
-    layAndMove,
-    endScope,
-};
-
-enum OozebotDirection {
-    up,
-    down,
-    left,
-    right,
-    forward,
-    back,
-};
-
-enum OozebotAxis {
-    x,
-    y,
-    z,
-};
-
-class OozebotExpression {
-    OozebotExpressionType expressionType;
-
-    double kg; // 0.01 - 1 
-    double k; // 500 - 10,000
-    double a; // expressed as a ratio of l0's natural length 0.5-2
-    double b; // -0.5 - 0.5, often 0
-    double c; // 0 - 2pi
-    OozebotDirection direction;
-    OozebotAxis scopeAxis;
-    int blockIdx; // which block to lay
-    int layAndMoveIdx;
-    std::vector<int> pointIdxs;
-    std::vector<int> springIdxs;
-};
+signed long int GlobalId = 0;
 
 bool massSortFunction(OozebotExpression a, OozebotExpression b) {
     return (a.kg > b.kg);
@@ -62,14 +22,14 @@ bool springSortFunction(OozebotExpression a, OozebotExpression b) {
     return (a.b > b.b);
 }
 
-OozebotEncoding randomEncoding() {
+OozebotEncoding OozebotEncoding::randomEncoding() {
     // Create masses
     std::vector<OozebotExpression> massCommands;
     massCommands.reserve(kNumMasses);
     for (int i = 0; i < kNumMasses; i++) {
         OozebotExpression massExpression;
-        massExpression.expressionType = OozebotExpressionType.massDeclaration;
-        massExpression.k = 0.1; // 0.01 + (rand() / RAND_MAX) * 0.99
+        massExpression.expressionType = massDeclaration;
+        massExpression.kg = 0.1; // 0.01 + (rand() / RAND_MAX) * 0.99
         massCommands.push_back(massExpression);
     }
     std::sort(massCommands.begin(), massCommands.end(), massSortFunction);
@@ -78,7 +38,7 @@ OozebotEncoding randomEncoding() {
     springCommands.reserve(kNumSprings);
     for (int i = 0; i < kNumSprings; i++) {
         OozebotExpression springExpression;
-        springExpression.expressionType = OozebotExpressionType.springDeclaration;
+        springExpression.expressionType = springDeclaration;
         double r = (double) rand() / RAND_MAX; // 0 to 1
         springExpression.k = 500 + r * 9500;
         r = (double) rand() / RAND_MAX; // 0 to 1
@@ -104,15 +64,15 @@ OozebotEncoding randomEncoding() {
     std::vector<OozebotExpression> boxCommands;
     boxCommands.reserve(kNumBoxes);
     for (int i = 0; i < kNumBoxes; i++) {
-        OozebotExpression boxExpression;
-        boxExpression.expressionType = OozebotExpressionType.boxExpression;
+        OozebotExpression boxCreationExpression;
+        boxCreationExpression.expressionType = boxDeclaration;
         for (int j = 0; j < 8; j++) {
-            boxExpression.pointIdxs.push_back(rand() % kNumPoints);
+            boxCreationExpression.pointIdxs.push_back(rand() % kNumMasses);
         }
         for (int j = 0; j < 28; j++) {
-            boxExpression.springIdxs.push_back(rand() % kNumSprings);
+            boxCreationExpression.springIdxs.push_back(rand() % kNumSprings);
         }
-        boxCommands.push_back(boxExpression);
+        boxCommands.push_back(boxCreationExpression);
     }
 
     std::vector<std::vector<OozebotExpression>> layAndMoveSequences;
@@ -120,19 +80,19 @@ OozebotEncoding randomEncoding() {
     std::vector<OozebotExpression> sequence;
 
     OozebotExpression midExpression;
-    midExpression.expressionType = OozebotExpressionType.layBlockAndMoveCursor;
+    midExpression.expressionType = layBlockAndMoveCursor;
     midExpression.blockIdx = 0;
-    midExpression.direction = OozebotDirection.left;
+    midExpression.direction = left;
 
     OozebotExpression sideExpression;
-    sideExpression.expressionType = OozebotExpressionType.layBlockAndMoveCursor;
+    sideExpression.expressionType = layBlockAndMoveCursor;
     sideExpression.blockIdx = 1;
-    sideExpression.direction = OozebotDirection.forward;
+    sideExpression.direction = forward;
 
     OozebotExpression legExpression;
-    legExpression.expressionType = OozebotExpressionType.layBlockAndMoveCursor;
+    legExpression.expressionType = layBlockAndMoveCursor;
     legExpression.blockIdx = 2;
-    legExpression.direction = OozebotDirection.down;
+    legExpression.direction = down;
 
     sequence.push_back(midExpression);
     sequence.push_back(midExpression);
@@ -157,7 +117,7 @@ OozebotEncoding randomEncoding() {
         sequence.reserve(kMaxLayAndMoveLength);
         for (int j = 0; j < kMaxLayAndMoveLength; j++) {
             OozebotExpression layAndMoveExpression;
-            layAndMoveExpression.expressionType = OozebotExpressionType.layAndMoveExpression;
+            layAndMoveExpression.expressionType = layAndMoveExpression;
             // Add bias to duplicate direction and type
             if (j > 0) {
                 double r = (double) rand() / RAND_MAX; // 0 to 1
@@ -193,13 +153,13 @@ OozebotEncoding randomEncoding() {
     OozebotExpression xExpression;
     OozebotExpression placeExpression;
 
-    zExpression.expressionType = OozebotExpressionType.symmetryScope;
-    zExpression.scopeAxis = OozebotAxis.z;
+    zExpression.expressionType = symmetryScope;
+    zExpression.scopeAxis = z;
 
-    xExpression.expressionType = OozebotExpressionType.symmetryScope;
-    xExpression.scopeAxis = OozebotAxis.x;
+    xExpression.expressionType = symmetryScope;
+    xExpression.scopeAxis = x;
 
-    placeExpression.expressionType = OozebotExpressionType.layAndMove;
+    placeExpression.expressionType = layAndMove;
     placeExpression.layAndMoveIdx = 0;
 
     growthCommands.push_back(zExpression);
@@ -210,15 +170,15 @@ OozebotEncoding randomEncoding() {
         double r = (double) rand() / RAND_MAX; // 0 to 1
         OozebotExpression growthExpression;
         if (r < 0.05) {
-            growthExpression.expressionType = OozebotExpressionType.fork;
+            growthExpression.expressionType = fork;
             // todo figure out how to close
         } else if (r < 0.2) else {
-            growthExpression.expressionType = OozebotExpressionType.symmetryScope;
+            growthExpression.expressionType = symmetryScope;
             growthExpression.scopeAxis = rand() % 3;
         } else if (r < 0.4) {
-            growthExpression.expressionType = OozebotExpressionType.endScope;
+            growthExpression.expressionType = endScope;
         } else {
-            growthExpression.expressionType = OozebotExpressionType.layAndMove;
+            growthExpression.expressionType = layAndMove;
             growthExpression.layAndMoveIdx = rand() % kMaxLayAndMoveSequences;
         }
         growthCommands.push_back(growthExpression);
@@ -232,73 +192,112 @@ OozebotEncoding randomEncoding() {
     double r = (double) rand() / RAND_MAX; // 0 to 1
     encoding.globalTimeInterval = 0.1 + r * 0.9;
     encoding.age = 1;
+    encoding.id = GlobalId++;
     encoding.massCommands = massCommands;
     encoding.springCommands = springCommands;
+    encoding.boxCommands = boxCommands;
     encoding.layAndMoveSequences = layAndMoveSequences;
     encoding.growthCommands = growthCommands;
     return encoding;
 }
 
-static OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding parent2) {
+OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding parent2) {
     OozebotEncoding child;
     child.massCommands = parent1.massCommands; // TODO others
     child.springCommands = {};
-    for (int i = 0; i < kNumMasses / 2; i++) {
+    for (int i = 0; i < kNumSprings / 2; i++) {
         child.springCommands.push_back(parent1.springCommands[i]);
     }
-    for (int i = kNumMasses / 2; i < kNumMasses; i++) {
+    for (int i = kNumSprings / 2; i < kNumSprings; i++) {
         child.springCommands.push_back(parent2.springCommands[i]);
     }
     std::sort(child.springCommands.begin(), child.springCommands.end(), springSortFunction);
+    child.boxCommands = {};
+    for (int i = 0; i < kNumBoxes / 2; i++) {
+        child.boxCommands.push_back(parent1.boxCommands[i]);
+    }
+    for (int i = kNumBoxes / 2; i < kNumBoxes; i++) {
+        child.boxCommands.push_back(parent2.boxCommands[i]);
+    }
     child.layAndMoveSequences = parent1.layAndMoveSequences;
     child.growthCommands = parent1.growthCommands;
-    std::vector<OozebotExpression> springCommands;
-    std::vector<std::vector<OozebotExpression>> layAndMoveSequences;
-    std::vector<OozebotExpression> growthCommands;
-    child.age = max(parent1.age, parent2.age) + 1;
+    //std::vector<OozebotExpression> springCommands;
+    //std::vector<std::vector<OozebotExpression>> layAndMoveSequences;
+    //std::vector<OozebotExpression> growthCommands;
+    child.age = std::max(parent1.age, parent2.age) + 1;
+    child.id = GlobalId++;
     child.globalTimeInterval = parent1.globalTimeInterval;
     return child;
 }
 
 // TODO update things other than springs
-void mutate(OozebotEncoding encoding) {
+OozebotEncoding mutate(OozebotEncoding encoding) {
     int springIndex = rand() % encoding.springCommands.size();
     double seed = (double) rand() / RAND_MAX - 0.5; // -0.5 to 0.5
-    int r = rand() % 4;
+    int r = rand() % 2;
     if (r == 0) {
-        double k = encoding.springCommands[springIndex].k;
-        k += min(max(seed * 100, 500), 10000);
-        encoding.springCommands[springIndex].k = k;
-    } else if (r == 1) {
-        double a = encoding.springCommands[springIndex].a;
-        a += min(max(seed * 0.1, 0.5), 2);
-        encoding.springCommands[springIndex].a = a;
-    } else if (r == 2) {
-        double b = encoding.springCommands[springIndex].b;
-        b += min(max(seed * 0.05, -0.5), 0.5);
-        encoding.springCommands[springIndex].b = b;
+        // Update a spring
+        r = rand() % 4;
+        if (r == 0) {
+            double k = encoding.springCommands[springIndex].k;
+            k += std::min(std::max(seed * 100, 500.0), 10000.0);
+            encoding.springCommands[springIndex].k = k;
+        } else if (r == 1) {
+            double a = encoding.springCommands[springIndex].a;
+            a += std::min(std::max(seed * 0.1, 0.5), 2.0);
+            encoding.springCommands[springIndex].a = a;
+        } else if (r == 2) {
+            double b = encoding.springCommands[springIndex].b;
+            b += std::min(std::max(seed * 0.05, -0.5), 0.5);
+            encoding.springCommands[springIndex].b = b;
+        } else {
+            double c = encoding.springCommands[springIndex].c;
+            c += std::min(std::max(seed * 0.1, 0.0), 2 * M_PI);
+            encoding.springCommands[springIndex].c = c;
+        }
     } else {
-        double c = encoding.springCommands[springIndex].c;
-        c += min(max(seed * 0.1, 0), 2 * M_PI);
-        encoding.springCommands[springIndex].c = c;
+        // Update a box
+        int boxIndex = rand() % kNumBoxes;
+        r = rand() % 2;
+        if (r == 0) {
+            int pointIndex = rand() % kNumMasses;
+            encoding.boxCommands[boxIndex].pointIdxs[pointIndex] = rand() % kNumMasses;
+        } else {
+            int springIndex = rand() % kNumMasses;
+            encoding.boxCommands[boxIndex].springIdxs[springIndex] = rand() % kNumSprings;
+        }
     }
     return encoding;
 }
 
-// TODO translate from encoding to masses and springs and run the sim
-// TODO make this async? Likely doable by returning an opaque handle
-static void OozebotEncoding::evaluate(OozebotEncoding encoding) {
-    SimInputs inputs = this.inputsFromEncoding(encoding);
+OozebotEncoding OozebotEncoding::evaluate(OozebotEncoding encoding) {
+    SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
     if (inputs.points.size() == 0) {
         encoding.fitness = 0;
         return encoding;
     }
-    encoding.fitness = simulate(&inputs.points, &inputs.springs, inputs.springPresets, 5.0 /*s*/, encoding.globalTimeInterval);
+    auto points = inputs.points;
+    auto springs = inputs.springs;
+    auto springPresets = inputs.springPresets;
+    double start = 0;
+    for (auto iter = points.begin(); iter != points.end(); ++iter) {
+        start += (*iter).x;
+    }
+    start = start / points.size();
+    simulate(points, springs, springPresets, 5.0, encoding.globalTimeInterval);
+    double end = 0;
+    bool hasNan = false;
+    for (auto iter = points.begin(); iter != points.end(); ++iter) {
+        end += (*iter).x;
+        if (isnan((*iter).x) || isinf((*iter).x)) {
+            printf("Solution has NaN or inf\n");
+            hasNan = true;
+        }
+    }
+    end = end / points.size();
+    encoding.fitness = hasNan ? 0 : abs(end - start);
     // TODO move to CUDA and make this async
-}
-
-inline bool dominates(OozebotEncoding firstEncoding, OozebotEncoding secondEncoding) {
-    return firstEncoding.fitness > secondEncoding.fitness && firstEncoding.age > secondEncoding.age;
+    return encoding;
 }
 
 void layBlockAtPosition(
@@ -322,13 +321,11 @@ void layBlockAtPosition(
                     std::map<int, std::map<int, int>> innerMap;
                     pointLocationToIndexMap[xi] = innerMap;
                 }
-                std::map<int, std::map<int, int>> innerMap = pointLocationToIndexMap[xi];
-                if (innerMap.find(yi) == innerMap.end()) {
+                if (pointLocationToIndexMap[xi].find(yi) == pointLocationToIndexMap[xi].end()) {
                     std::map<int, int> innermostMap;
                     pointLocationToIndexMap[xi][yi] = innermostMap;
                 }
-                std::map<int, int> innermostMap = pointLocationToIndexMap[xi][yi];
-                if (innermostMap.find(zi) != innermostMap.end()) {
+                if (pointLocationToIndexMap[xi][yi].find(zi) == pointLocationToIndexMap[xi][yi].end()) {
                     // It wasn't already there so we add it
                     pointLocationToIndexMap[xi][yi][zi] = points.size();
                     OozebotExpression pointExpression = massCommands[boxCommand.pointIdxs[i]];
@@ -342,11 +339,11 @@ void layBlockAtPosition(
     }
     // now make the springs
     i = 0;
-    for (auto it = pointIndices.begin(); it != pointIndices.end(); it++) {
-        for (auto iter = it + 1; iter != pointIndices.end(); iter++) {
+    for (int ii = 0; ii < pointIndices.size(); ii++) {
+        for (int jj = ii + 1; jj < pointIndices.size(); jj++) {
+            int first = std::min(ii, jj);
+            int second = std::max(ii, jj);
             // always index from smaller to bigger so we don't have to double bookkeep
-            int first = min(*it, *iter);
-            int second = max(*it, *iter);
             if (pointIndexHasSpring.find(first) == pointIndexHasSpring.end()) {
                 std::map<int, bool> innerMap;
                 pointIndexHasSpring[first] = innerMap;
@@ -381,23 +378,24 @@ int recursiveBuildABot(
     bool invertY,
     bool invertZ,
     int commandIdx) {
-    if (commandIdx >= growthCommands.size) {
+    if (commandIdx >= growthCommands.size()) {
         return 100;
     }
     OozebotExpression growthCommand = growthCommands[commandIdx];
     int minY = 100;
-    switch growthCommand.expressionType {
-        case OozebotExpressionType.symmetryScope:
+    switch (growthCommand.expressionType) {
+        case symmetryScope:
+        {
             int firstMinY = recursiveBuildABot(
-                &points,
-                &springs,
-                &pointLocationToIndexMap,
-                &pointIndexHasSpring,
-                encoding.growthCommands,
-                encoding.massCommands,
-                encoding.springCommands,
-                encoding.boxCommands,
-                encoding.layAndMoveSequences,
+                points,
+                springs,
+                pointLocationToIndexMap,
+                pointIndexHasSpring,
+                growthCommands,
+                massCommands,
+                springCommands,
+                boxCommands,
+                layAndMoveSequences,
                 x,
                 y,
                 z,
@@ -405,70 +403,75 @@ int recursiveBuildABot(
                 invertY,
                 invertZ,
                 commandIdx + 1);
+
             int secondMinY = recursiveBuildABot(
-                &points,
-                &springs,
-                &pointLocationToIndexMap,
-                &pointIndexHasSpring,
-                encoding.growthCommands,
-                encoding.massCommands,
-                encoding.springCommands,
-                encoding.boxCommands,
-                encoding.layAndMoveSequences,
+                points,
+                springs,
+                pointLocationToIndexMap,
+                pointIndexHasSpring,
+                growthCommands,
+                massCommands,
+                springCommands,
+                boxCommands,
+                layAndMoveSequences,
                 x,
                 y,
                 z,
-                growthCommand.scopeAxis == OozebotAxis.x ? !invertX : invertX,
-                growthCommand.scopeAxis == OozebotAxis.y ? !invertY : invertY,
-                growthCommand.scopeAxis == OozebotAxis.z ? !invertZ : invertZ,
+                growthCommand.scopeAxis == x ? !invertX : invertX,
+                growthCommand.scopeAxis == y ? !invertY : invertY,
+                growthCommand.scopeAxis == z ? !invertZ : invertZ,
                 commandIdx + 1);
-            return min(firstMinY, secondMinY);
-        case OozebotExpressionType.layAndMove:
+
+            return std::min(firstMinY, secondMinY);
+        }
+        case layAndMove:
+        {
             std::vector<OozebotExpression> layAndMoveSequence = layAndMoveSequences[growthCommand.layAndMoveIdx];
             for (auto iter = layAndMoveSequence.begin(); iter != layAndMoveSequence.end(); ++iter) {
-                OozebotExpression cmd = *it;
+                OozebotExpression cmd = *iter;
                 // First we lay the current block
-                layBlockAtPosition(x, y, z, &points, &springs, &pointLocationToIndexMap, &pointIndexHasSpring, massCommands, springCommands, boxCommands[cmd.blockIdx]);
+                layBlockAtPosition(x, y, z, points, springs, pointLocationToIndexMap, pointIndexHasSpring, massCommands, springCommands, boxCommands[cmd.blockIdx]);
+                minY = std::min(minY, y); // only update minY when we actually lay a block - otherwise we could end at a new low without laying
 
                 // Now we move
                 OozebotDirection direction = cmd.direction;
-                switch direction {
-                    case OozebotDirection.up:
+                switch (direction) {
+                    case up:
                         if (invertY == false) {
                             y += 1;
                         } else {
                             y -= 1;
                         }
                         break;
-                    case OozebotDirection.down:
+                    case down:
                         if (invertY == false) {
                             y -= 1;
                         } else {
                             y += 1;
                         }
                         break;
-                    case OozebotDirection.left:
+                    case left:
                         if (invertZ == false) {
                             z -= 1;
                         } else {
                             z += 1;
                         }
                         break;
-                    case OozebotDirection.right:
+                    case right:
                         if (invertZ == false) {
                             z += 1;
                         } else {
                             z -= 1;
                         }
                         break;
-                    case OozebotDirection.forward:
+                    case forward:
                         if (invertX == false) {
                             x += 1;
                         } else {
                             x -= 1;
                         }
                         break;
-                    case OozebotDirection.back:
+                    case back:
                         if (invertX == false) {
                             x -= 1;
                         } else {
@@ -476,22 +479,21 @@ int recursiveBuildABot(
                         }
                         break;
                 }
-                x = max(min(x, 100), -100);
-                y = max(min(y, 100), -100);
-                z = max(min(z, 100), -100);
-                minY = min(minY, y);
+                x = std::max(std::min(x, 100), -100);
+                y = std::max(std::min(y, 100), -100);
+                z = std::max(std::min(z, 100), -100);
             }
 
             int otherMinY = recursiveBuildABot(
-                &points,
-                &springs,
-                &pointLocationToIndexMap,
-                &pointIndexHasSpring,
-                encoding.growthCommands,
-                encoding.massCommands,
-                encoding.springCommands,
-                encoding.boxCommands,
-                encoding.layAndMoveSequences,
+                points,
+                springs,
+                pointLocationToIndexMap,
+                pointIndexHasSpring,
+                growthCommands,
+                massCommands,
+                springCommands,
+                boxCommands,
+                layAndMoveSequences,
                 x,
                 y,
                 z,
@@ -499,14 +501,17 @@ int recursiveBuildABot(
                 invertY,
                 invertZ,
                 commandIdx + 1);
-            return min(minY, otherMinY);
+            return std::min(minY, otherMinY);
+        }
         default:
+        {
             printf("Unexpected expression\n");
             return -1;
+        }
     }
 }
 
-static SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
+SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     std::vector<Point> points;
     std::vector<Spring> springs;
     std::vector<FlexPreset> presets;
@@ -522,10 +527,10 @@ static SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     std::map<int, std::map<int, bool>> pointIndexHasSpring;
 
     int minY = recursiveBuildABot(
-        &points,
-        &springs,
-        &pointLocationToIndexMap,
-        &pointIndexHasSpring,
+        points,
+        springs,
+        pointLocationToIndexMap,
+        pointIndexHasSpring,
         encoding.growthCommands,
         encoding.massCommands,
         encoding.springCommands,
@@ -541,8 +546,8 @@ static SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
 
     // ground robot on lowest point
     for (auto it = points.begin(); it != points.end(); ++it) {
-        points.y -= minY;
+        (*it).y -= (double(minY) / 10.0);
     }
 
-    return { points, springs, presets  };
+    return { points, springs, presets };
 }

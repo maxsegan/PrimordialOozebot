@@ -7,9 +7,8 @@
 
 class ParetoFront {
 public:
-    // Returns true if it is on the global pareto front, false otherwise
     // This functions will add the evaluated encoding and invalidate others appropriately
-    bool evaluateEncoding(OozebotEncoding encoding);
+    OozebotEncoding evaluateEncoding(OozebotEncoding encoding);
 
     // 1 if very novel, asymptotes to 0 as it's less novel
     double noveltyDegreeForEncoding(OozebotEncoding encoding);
@@ -18,11 +17,11 @@ private:
     std::vector<OozebotEncoding> encodingFront;
     std::vector<std::pair<int, double>> allResults;
     std::vector<std::vector<int>> buckets;
-    int ageBucketSize;
-    int fitnessBucketSize;
-    int maxAge;
-    double maxFitness;
-    int lastResize;
+    int ageBucketSize = 1;
+    double fitnessBucketSize = 0.1;
+    int maxAge = 0;
+    double maxFitness = 0;
+    int lastResize = 10;
 
     void resize();
 };

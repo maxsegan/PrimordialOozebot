@@ -8,14 +8,14 @@
 const double kSpring = 500.0;
 const double kGround = -100000.0;
 const double kDropHeight = 0.2;
-const int kNumPerSide = 10;
+const int kNumPerSide = 2;
 const double staticFriction = 0.5;
 const double kineticFriction = 0.3;
 const double dt = 0.0001;
 const double dampening = 1 - (dt * 5);
 const double gravity = -9.81;
 
-int main() {
+int mains() {
     std::vector<Point> points;
     std::vector<Spring> springs;
 
@@ -73,11 +73,12 @@ int main() {
     // 60 fps - 0.000166
     const double limit = 5;
     const long long int numSprings = springs.size();
+    std::vector<FlexPreset> presets = { {1, 0.0, 0.0} };
     long long int y = (long long int)(limit / dt * numSprings);
     printf("num springs evaluated: %lld\n", y);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    simulate(points, springs, limit, 0);
+    simulate(points, springs, presets, limit, 0);
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
@@ -91,8 +92,17 @@ int main() {
 
 void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> presets, double n, double oscillationFrequency) {
     double t = 0;
+    std::vector<double> presetValues;
+    for (auto it = presets.begin(); it != presets.end(); it++) {
+        presetValues.push_back(0.0);
+    }
     while (t < n) {
-        double adjust = 1 + sin(t * oscillationFrequency) * 0.1; // TODO handle presets here
+        for (int i = 0; i < presetValues.size(); i++) {
+            const double a = presets[i].a;
+            const double b = presets[i].b;
+            const double c = presets[i].c; 
+            presetValues[i] = a + b * sin(t * oscillationFrequency);
+        }
         for (std::vector<Spring>::iterator i = springs.begin(); i != springs.end(); ++i) {
             Spring l = *i;
 
@@ -107,7 +117,7 @@ void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vec
             const double dist = sqrt(xd * xd + yd * yd + zd * zd);
 
             // negative if repelling, positive if attracting
-            const double f = l.k * (dist - (l.l0 * adjust));
+            const double f = l.k * (dist - (l.l0 * presetValues[l.flexIndex]));
             const double fd = f / dist;
             // distribute force across the axes
             const double dx = xd * fd;

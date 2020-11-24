@@ -10,7 +10,7 @@ struct Point {
   double vx; // meters/second
   double vy; // meters/second
   double vz; // meters/second
-  const double mass; // kg
+  double mass; // kg
   double fx; // N - internal bookkeeping
   double fy; // N
   double fz; // N

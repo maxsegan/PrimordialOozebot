@@ -6,34 +6,9 @@
 #include <map>
 #include <chrono>
 
+#include "cudaSim.h"
+
 // Usage: nvcc -O2 cudaSim.cu -o cudaSim -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64"
-
-struct Point {
-  float x; // meters
-  float y; // meters
-  float z; // meters
-  float vx; // meters/second
-  float vy; // meters/second
-  float vz; // meters/second
-  float mass; // kg
-  int numSprings; // Int - hack for CUDA ease
-  int springDeltaIndex;
-};
-
-struct Spring {
-  float k; // N/m
-  int p1; // Index of first point
-  int p2; // Index of second point
-  float l0; // meters
-  int p1SpringIndex;
-  int p2SpringIndex;
-};
-
-struct SpringDelta {
-  float dx;
-  float dy;
-  float dz;
-};
 
 void genPointsAndSprings(
 	std::vector<Point> &points,
@@ -50,7 +25,19 @@ const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
 const int pointsPerSide = 40;
 
-__global__ void update_spring(Point *points, Spring *springs, SpringDelta *springDeltas, float adjust, int n) {
+__global__ void update_spring(
+    Point *points,
+    Spring *springs,
+    SpringDelta *springDeltas,
+    int n,
+    double preset0,
+    double preset1,
+    double preset2,
+    double preset3,
+    double preset4,
+    double preset5,
+    double preset6,
+    double preset7) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
 
@@ -65,6 +52,36 @@ __global__ void update_spring(Point *points, Spring *springs, SpringDelta *sprin
     float dist = sqrt(dx * dx + dy * dy + dz * dz);
 
     // negative if repelling, positive if attracting
+    float adjust;
+    switch s.flexIndex {
+        case 0:
+            adjust = preset0;
+            break;
+        case 1:
+            adjust = preset1;
+            break;
+        case 2:
+            adjust = preset2;
+            break;
+        case 3:
+            adjust = preset3;
+            break;
+        case 4:
+            adjust = preset4;
+            break;
+        case 5:
+            adjust = preset5;
+            break;
+        case 6:
+            adjust = preset6;
+            break;
+        case 7:
+            adjust = preset7;
+            break;
+        default:
+            adjust = 1;
+            break;
+    }
     float f = s.k * (dist - (s.l0 * adjust));
 
     float fd = f / dist;
@@ -131,13 +148,7 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     points[i] = p;
 }
 
-int main() {
-    std::vector<Point> points;
-    std::vector<Spring> springs;
-
-    genPointsAndSprings(points, springs);
-    std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
-
+void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> presets, double n, double oscillationFrequency) {
     Point *p_d;
     Spring *s_d;
     SpringDelta *ps_d;
@@ -151,42 +162,61 @@ int main() {
     cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaMemcpyHostToDevice);
 
     double t = 0;
-    double limit = 1;
     int numPoints = points.size();
     int numPointThreads = 12;
     int numPointBlocks = numPoints / numPointThreads + 1;
   
-  	int numSprings = springs.size();
+    int numSprings = springs.size();
     int numSpringThreads = 25;
     int numSpringBlocks = numSprings / numSpringThreads + 1;
 
-    printf("num springs evaluated: %lld, %d\n", long long int(limit / dt * numSprings), numSprings);
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    std::vector<float> pv;
+    for (auto it = pv.begin(); it != pv.end(); it++) {
+        pv.push_back(0.0);
+    }
 
-    while (t < limit) {
-        float adjust = 1 + sin(t * kOscillationFrequency) * 0.1;
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, adjust, numSprings);
+    //printf("num springs evaluated: %lld, %d\n", long long int(limit / dt * numSprings), numSprings);
+    //std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+    while (t < n) {
+        for (int i = 0; i < pv.size(); i++) {
+            const float a = pv[i].a;
+            const float b = pv[i].b;
+            const float c = pv[i].c; 
+            pv[i] = a + b * sin(t * oscillationFrequency);
+        }
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5], pv[6], pv[7]);
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
         t += dt;
     }
 
     cudaDeviceSynchronize();
  
-
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
+    //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    //auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    //std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
 
     Point *ps = (Point *)malloc(points.size() * sizeof(Point));
     cudaMemcpy(ps, p_d, points.size() * sizeof(Point), cudaMemcpyDeviceToHost);
     for (int i = 0; i < 8; i++) {
-    	printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
+        printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
     }
     
     cudaFree(p_d);
     cudaFree(s_d);
     cudaFree(ps_d);
     free(ps);
+}
+
+int mains() {
+    std::vector<Point> points;
+    std::vector<Spring> springs;
+    std::vector<SpringPreset> presets = { {1, 0.0, 0.0} };
+
+    genPointsAndSprings(points, springs);
+    std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
+
+    simulate(points, springs, 5.0, 0.5)
 
     return 0;
 }

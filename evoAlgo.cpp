@@ -16,15 +16,15 @@ int main() {
     // – Novelty / Diversity
     // – Robustness / sensitivity
 
-
     int maxEvaluations = 1000000; // TODO take as a param
     int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    while (generation.size() < minNumSolutions) {
-        OozebotEncoding encoding = randomEncoding();
+
+    for (int i = 0; i < minNumSolutions; i++) {
+        OozebotEncoding encoding = generation.globalParetoFront.evaluateEncoding(OozebotEncoding::randomEncoding());
         generation.insertOozebot(encoding);
     }
 
@@ -32,10 +32,13 @@ int main() {
     while (numEvaluations < maxEvaluations) {
         // Regularly inject new random solutions at regular intervals
         if (numEvaluations % 16 == 0) {
-            OozebotEncoding encoding = randomEncoding();
-            generation.insertOozebot(encoding);
+            OozebotEncoding encoding = generation.globalParetoFront.evaluateEncoding(OozebotEncoding::randomEncoding());
+            generation.replaceLast(encoding);
         } else {
             generation.selectAndMate();
+        }
+        if (numEvaluations % 10 == 0) {
+            printf("Finished run #%d\n", numEvaluations);
         }
         numEvaluations += 1;
     }
