@@ -72,7 +72,7 @@ void ParetoSelector::replaceLast(OozebotEncoding encoding) {
 // by updating the subspaces dynamically
 void ParetoSelector::selectAndMate() {
     this->sort();
-    // TODO go by indices so we can do multiple at the same time more easily
+
     int i = this->selectionIndex();
     int j = this->selectionIndex();
     while (j == i) {
@@ -83,25 +83,45 @@ void ParetoSelector::selectAndMate() {
     if (r < this->mutationProbability) {
         child = mutate(child);
     }
-    child = globalParetoFront.evaluateEncoding(child);
+    PendingSolution handle = {OozebotEncoding::evaluate(child), child, this->generation[i].encoding.id, this->generation[j].encoding.id};
+    PendingSolution previousHandle = this->pendingSolution;
+    this->pendingSolution = handle;
+    if (previousHandle.firstId == previousHandle.secondId) {
+        return;
+    }
+    auto res = OozebotEncoding::wait(previousHandle.handle);
+    child = previousHandle.encoding;
+    child.fitness = res.first;
+    child.numTouchesRatio = res.second;
+    globalParetoFront.evaluateEncoding(child);
+    if (this->idToIndex.find(previousHandle.firstId) == this->idToIndex.end()) {
+        i = -1;
+    } else {
+        i = this->idToIndex[previousHandle.firstId];
+    }
+    if (this->idToIndex.find(previousHandle.secondId) == this->idToIndex.end()) {
+        j = -1;
+    } else {
+        j = this->idToIndex[previousHandle.secondId];
+    }
 
     // children are compared to parent - if they dominate they replace
     // If neither dominates, child is compared to the global pareto front - if it's in it it replaces the parent
     // If not, we keep it if it's in a less crowded region than the parent
-    if (dominates(child, this->generation[i].encoding)) {
+    if (i != -1 && dominates(child, this->generation[i].encoding)) {
         this->removeOozebotAtIndex(i);
         this->insertOozebot(child);
-    } else if (dominates(child, this->generation[j].encoding)) {
+    } else if (j != -1 && dominates(child, this->generation[j].encoding)) {
         this->removeOozebotAtIndex(j);
         this->insertOozebot(child);
-    } else if (!dominates(this->generation[i].encoding, child)) {
+    } else if (i != -1 && !dominates(this->generation[i].encoding, child)) {
         double childNovelty = this->globalParetoFront.noveltyDegreeForEncoding(child);
         double iNovelty = this->globalParetoFront.noveltyDegreeForEncoding(this->generation[i].encoding);
         if (childNovelty > iNovelty) {
             this->removeOozebotAtIndex(i);
             this->insertOozebot(child);
         }
-    } else if (!dominates(this->generation[j].encoding, child)) {
+    } else if (j != -1 && !dominates(this->generation[j].encoding, child)) {
         double childNovelty = this->globalParetoFront.noveltyDegreeForEncoding(child);
         double jNovelty = this->globalParetoFront.noveltyDegreeForEncoding(this->generation[j].encoding);
         if (childNovelty > jNovelty) {

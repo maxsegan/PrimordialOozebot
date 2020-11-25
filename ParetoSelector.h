@@ -15,6 +15,13 @@ struct OozebotSortWrapper {
     double novelty;
 };
 
+struct PendingSolution {
+    AsyncSimHandle handle;
+    OozebotEncoding encoding;
+    unsigned long int firstId;
+    unsigned long int secondId;
+};
+
 class ParetoSelector {
 public:
     ParetoFront globalParetoFront;
@@ -39,6 +46,7 @@ private:
     std::vector<OozebotSortWrapper> generation;
     std::vector<double> indexToProbability;
     std::map<signed long int, int> idToIndex;
+    PendingSolution pendingSolution = {{}, {}, 0ul, 0ul};
 
     void sort();
     void removeOozebotAtIndex(int i);

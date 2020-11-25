@@ -8,7 +8,7 @@
 
 #include "cudaSim.h"
 
-// Usage: nvcc -O2 cudaSim.cu -o cudaSim -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64"
+// Usage: nvcc -O2 /std:c++17 cudaSim.cu -o cudaSim -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64"
 
 void genPointsAndSprings(
 	std::vector<Point> &points,
@@ -21,9 +21,8 @@ void genPointsAndSprings(
 #define gravity -9.81
 #define kSpring 500.0
 #define kGround -100000.0
-const float kOscillationFrequency = 0;
 const float kDropHeight = 0.2;
-const int pointsPerSide = 40;
+const int pointsPerSide = 2;
 
 __global__ void update_spring(
     Point *points,
@@ -53,7 +52,7 @@ __global__ void update_spring(
 
     // negative if repelling, positive if attracting
     float adjust;
-    switch s.flexIndex {
+    switch (s.flexIndex) {
         case 0:
             adjust = preset0;
             break;
@@ -131,6 +130,7 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
             fz = fz - fz * fykinetic;
         }
         fy += kGround * y;
+        p.timestampsContactGround += 1;
     }
     float ax = fx / mass;
     float ay = fy / mass;
@@ -148,7 +148,20 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     points[i] = p;
 }
 
-void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> presets, double n, double oscillationFrequency) {
+AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency) {
+    if (points.size() == 0) {
+        return { {}, NULL, NULL, NULL};
+    }
+    std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
+    int springDeltaIndex  = 0;
+    double start = 0;
+    for (int i = 0; i < points.size(); i++) {
+        points[i].springDeltaIndex = springDeltaIndex;
+        springDeltaIndex += points[i].numSprings;
+        start += points[i].x;
+    }
+    start = start / points.size();
+
     Point *p_d;
     Spring *s_d;
     SpringDelta *ps_d;
@@ -171,7 +184,7 @@ void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vec
     int numSpringBlocks = numSprings / numSpringThreads + 1;
 
     std::vector<float> pv;
-    for (auto it = pv.begin(); it != pv.end(); it++) {
+    for (auto it = presets.begin(); it != presets.end(); it++) {
         pv.push_back(0.0);
     }
 
@@ -180,9 +193,9 @@ void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vec
 
     while (t < n) {
         for (int i = 0; i < pv.size(); i++) {
-            const float a = pv[i].a;
-            const float b = pv[i].b;
-            const float c = pv[i].c; 
+            const float a = presets[i].a;
+            const float b = presets[i].b;
+            const float c = presets[i].c; 
             pv[i] = a + b * sin(t * oscillationFrequency);
         }
         update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5], pv[6], pv[7]);
@@ -190,33 +203,38 @@ void simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vec
         t += dt;
     }
 
-    cudaDeviceSynchronize();
+    //std::vector<Point> newPoints(points.size(), {0, 0, 0, 0, 0, 0, 0, 0, 0});
+    return {points, p_d, s_d, ps_d, start};
  
     //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     //auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     //std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
+}
 
-    Point *ps = (Point *)malloc(points.size() * sizeof(Point));
-    cudaMemcpy(ps, p_d, points.size() * sizeof(Point), cudaMemcpyDeviceToHost);
-    for (int i = 0; i < 8; i++) {
-        printf("x: %f, y: %f, z: %f, %d\n", ps[i].x, ps[i].y, ps[i].z, i);
+void resolveSim(AsyncSimHandle &handle) {
+    if (handle.points.size() == 0) {
+        return;
     }
+    cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost);
     
-    cudaFree(p_d);
-    cudaFree(s_d);
-    cudaFree(ps_d);
-    free(ps);
+    cudaFree(handle.p_d);
+    cudaFree(handle.s_d);
+    cudaFree(handle.ps_d);
 }
 
 int mains() {
     std::vector<Point> points;
     std::vector<Spring> springs;
-    std::vector<SpringPreset> presets = { {1, 0.0, 0.0} };
+    std::vector<FlexPreset> presets = { {1, 0.0, 0.0} };
 
     genPointsAndSprings(points, springs);
-    std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
 
-    simulate(points, springs, 5.0, 0.5)
+    AsyncSimHandle handle = simulate(points, springs, presets, 5.0, 0.5);
+    resolveSim(handle);
+
+    for (int i = 0; i < 8; i++) {
+        printf("x: %f, y: %f, z: %f, %d\n", handle.points[i].x, handle.points[i].y, handle.points[i].z, i);
+    }
 
     return 0;
 }
@@ -281,10 +299,5 @@ void genPointsAndSprings(
                 }
             }
         }
-    }
-    int springDeltaIndex  = 0;
-    for (int i = 0; i < points.size(); i++) {
-        points[i].springDeltaIndex = springDeltaIndex;
-        springDeltaIndex += points[i].numSprings;
     }
 }

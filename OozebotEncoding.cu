@@ -1,9 +1,12 @@
+#define _USE_MATH_DEFINES
+#include <cmath>
+
 #include <math.h>
 #include <algorithm>
+#include <utility>
 #include <map>
 
 #include "oozebotEncoding.h"
-#include "cppSim.h"
 
 const int kNumMasses = 6;
 const int kNumSprings = 8;
@@ -12,7 +15,7 @@ const int kMaxLayAndMoveSequences = 10;
 const int kMaxGrowthCommands = 10;
 const int kMaxLayAndMoveLength = 100;
 
-signed long int GlobalId = 0;
+signed long int GlobalId = 1;
 
 bool massSortFunction(OozebotExpression a, OozebotExpression b) {
     return (a.kg > b.kg);
@@ -191,7 +194,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
     OozebotEncoding encoding;
     double r = (double) rand() / RAND_MAX; // 0 to 1
     encoding.globalTimeInterval = 0.1 + r * 0.9;
-    encoding.age = 1;
+    encoding.numTouchesRatio = 0;
     encoding.id = GlobalId++;
     encoding.massCommands = massCommands;
     encoding.springCommands = springCommands;
@@ -224,7 +227,6 @@ OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding p
     //std::vector<OozebotExpression> springCommands;
     //std::vector<std::vector<OozebotExpression>> layAndMoveSequences;
     //std::vector<OozebotExpression> growthCommands;
-    child.age = std::max(parent1.age, parent2.age) + 1;
     child.id = GlobalId++;
     child.globalTimeInterval = parent1.globalTimeInterval;
     return child;
@@ -270,34 +272,39 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     return encoding;
 }
 
-OozebotEncoding OozebotEncoding::evaluate(OozebotEncoding encoding) {
+AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding) {
     SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
     if (inputs.points.size() == 0) {
-        encoding.fitness = 0;
-        return encoding;
+        return { {}, NULL, NULL, NULL};
     }
     auto points = inputs.points;
     auto springs = inputs.springs;
     auto springPresets = inputs.springPresets;
-    double start = 0;
-    for (auto iter = points.begin(); iter != points.end(); ++iter) {
-        start += (*iter).x;
+   
+    return simulate(points, springs, springPresets, 5.0, encoding.globalTimeInterval);
+}
+
+std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
+    resolveSim(handle);
+    if (handle.points.size() == 0) {
+        return {0, 0};
     }
-    start = start / points.size();
-    simulate(points, springs, springPresets, 5.0, encoding.globalTimeInterval);
     double end = 0;
     bool hasNan = false;
-    for (auto iter = points.begin(); iter != points.end(); ++iter) {
+    int numTouches = 0;
+    for (auto iter = handle.points.begin(); iter != handle.points.end(); ++iter) {
         end += (*iter).x;
         if (isnan((*iter).x) || isinf((*iter).x)) {
             printf("Solution has NaN or inf\n");
             hasNan = true;
         }
+        if ((*iter).timestampsContactGround > 0) {
+            numTouches += 1;
+        }
     }
-    end = end / points.size();
-    encoding.fitness = hasNan ? 0 : abs(end - start);
-    // TODO move to CUDA and make this async
-    return encoding;
+    end = end / handle.points.size();
+    double fitness = hasNan ? 0 : abs(end - handle.start);
+    return {fitness, (double)numTouches / handle.points.size()};
 }
 
 void layBlockAtPosition(
@@ -329,7 +336,7 @@ void layBlockAtPosition(
                     // It wasn't already there so we add it
                     pointLocationToIndexMap[xi][yi][zi] = points.size();
                     OozebotExpression pointExpression = massCommands[boxCommand.pointIdxs[i]];
-                    Point p = {xi / 10.0, yi / 10.0, zi / 10.0, 0, 0, 0, pointExpression.kg, 0, 0, 0};
+                    Point p = {xi / 10.0f, yi / 10.0f, zi / 10.0f, 0, 0, 0, pointExpression.kg, 0, 0};
                     points.push_back(p);
                 }
                 pointIndices.push_back(pointLocationToIndexMap[xi][yi][zi]);
@@ -341,20 +348,23 @@ void layBlockAtPosition(
     i = 0;
     for (int ii = 0; ii < pointIndices.size(); ii++) {
         for (int jj = ii + 1; jj < pointIndices.size(); jj++) {
-            int first = std::min(ii, jj);
-            int second = std::max(ii, jj);
+            int first = std::min(pointIndices[ii], pointIndices[jj]);
+            int second = std::max(pointIndices[ii], pointIndices[jj]);
             // always index from smaller to bigger so we don't have to double bookkeep
             if (pointIndexHasSpring.find(first) == pointIndexHasSpring.end()) {
                 std::map<int, bool> innerMap;
                 pointIndexHasSpring[first] = innerMap;
             }
             if (pointIndexHasSpring[first].find(second) == pointIndexHasSpring[first].end()) {
+                pointIndexHasSpring[first][second] = true;
                 OozebotExpression springExpression = springCommands[boxCommand.springIdxs[i]];
                 Point p1 = points[first];
                 Point p2 = points[second];
-                double length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
-                Spring s = {springExpression.k, first, second, length, boxCommand.springIdxs[i]};
+                float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
+                Spring s = {springExpression.k, first, second, length, p1.numSprings, p2.numSprings, boxCommand.springIdxs[i]};
                 springs.push_back(s);
+                points[first].numSprings += 1;
+                points[second].numSprings += 1;
             }
             i++;
         }

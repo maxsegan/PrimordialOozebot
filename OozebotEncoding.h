@@ -2,7 +2,7 @@
 #define OOZEBOT_ENCODING_H
 
 #include <vector>
-#include "cppSim.h"
+#include "cudaSim.h"
 
 enum OozebotExpressionType {
     massDeclaration, // kg
@@ -57,7 +57,7 @@ struct SimInputs {
 class OozebotEncoding {
 public:
     double fitness; // Depends on objective - might be net displacement
-    int age = 1; // Longest ancestral chain
+    double numTouchesRatio; // how many points ever touched the ground in the sim?
     double globalTimeInterval; // 0.1 - 1
     unsigned long int id;
 
@@ -65,8 +65,9 @@ public:
 
     static SimInputs inputsFromEncoding(OozebotEncoding encoding);
 
-    // Evaluates and fills in fitness and related fields
-    static OozebotEncoding evaluate(OozebotEncoding encoding);
+    // Wait to get the fitness value - must call exactly once!
+    static AsyncSimHandle evaluate(OozebotEncoding encoding);
+    static std::pair<double, double> wait(AsyncSimHandle handle);
 
     static OozebotEncoding randomEncoding();
 
@@ -83,7 +84,7 @@ OozebotEncoding mutate(OozebotEncoding encoding);
 
 // Returns true if the first encoding dominates the second, false otherwise
 inline bool dominates(OozebotEncoding firstEncoding, OozebotEncoding secondEncoding) {
-    return firstEncoding.fitness > secondEncoding.fitness && firstEncoding.age >= secondEncoding.age;
+    return firstEncoding.fitness >= secondEncoding.fitness && firstEncoding.numTouchesRatio <= secondEncoding.numTouchesRatio;
 }
 
 #endif
