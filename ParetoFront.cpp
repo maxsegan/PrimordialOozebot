@@ -2,8 +2,12 @@
 #include <algorithm>
 #include <random>
 #include <stdio.h>
+#include <iostream>
+#include <fstream>
+#include <string>
 
 #include "ParetoFront.h"
+#include "cudaSim.h"
 
 bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
     this->allResults.push_back({encoding.numTouchesRatio, encoding.fitness});
@@ -17,6 +21,40 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
     if (encoding.fitness > this->maxFitness) {
         this->maxFitness = encoding.fitness;
         printf("New max fitness: %f, for ID: %ld\n", encoding.fitness, encoding.id);
+        // We now log this to report - should this be here? Maybe not, but the async is annoying.
+        // Prolly wanted a callback
+        SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
+        std::ofstream myfile;
+        myfile.open("output/robo" + std::to_string(encoding.id) + ".txt");
+        // Janky JSON bc meh it's simple
+        myfile << "{\n";
+        myfile << "\"name\": \"robo" + std::to_string(encoding.id) + "\",\n";
+        myfile << "\"masses\" : [\n";
+        for (auto it = inputs.points.begin(); it != inputs.points.end(); ++it) {
+            myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).y) + ", " + std::to_string((*it).z) + "],\n";
+        }
+        myfile << "],\n";
+        myfile << "\"springs\" : [\n";
+        for (auto it = inputs.springs.begin(); it != inputs.springs.end(); ++it) {
+            myfile << "[ " + std::to_string((*it).p1) + ", " + std::to_string((*it).p2) + "],\n";
+        }
+        myfile << "],\n";
+        myfile << "\"simulation\" : [\n";
+        double t = 0;
+        double dt = 0.16667;
+        while (t < 10) {
+            AsyncSimHandle handle = simulate(inputs.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval);
+            resolveSim(handle);
+            t += dt;
+            myfile << "[\n";
+            for (auto it = inputs.points.begin(); it != inputs.points.end(); ++it) {
+                myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).y) + ", " + std::to_string((*it).z) + "],\n";
+            }
+            myfile << "],\n";
+        }
+        myfile << "]\n";
+        myfile << "}";
+        myfile.close();
     }
     
     int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);

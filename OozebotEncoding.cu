@@ -108,10 +108,10 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 
     sequence.push_back(legExpression);
     sequence.push_back(legExpression);
-    sequence.push_back(legExpression);
-    sequence.push_back(legExpression);
-    sequence.push_back(legExpression);
-    sequence.push_back(legExpression);
+    // sequence.push_back(legExpression);
+    // sequence.push_back(legExpression);
+    // sequence.push_back(legExpression);
+    // sequence.push_back(legExpression);
 
     layAndMoveSequences.push_back(sequence);
     /*layAndMoveSequences.reserve(kMaxLayAndMoveSequences);

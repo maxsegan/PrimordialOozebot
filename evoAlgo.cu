@@ -20,7 +20,7 @@ int main() {
 
     int maxEvaluations = 1000000; // TODO take as a param
     int minNumSolutions = 300; // TODO take as a param
-    double mutationRate = 0.05; // TODO take as a param
+    double mutationRate = 0.25; // TODO take as a param
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
