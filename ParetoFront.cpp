@@ -31,26 +31,45 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
         myfile << "\"name\": \"robo" + std::to_string(encoding.id) + "\",\n";
         myfile << "\"masses\" : [\n";
         for (auto it = inputs.points.begin(); it != inputs.points.end(); ++it) {
-            myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).y) + ", " + std::to_string((*it).z) + "],\n";
+            myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).y) + ", " + std::to_string((*it).z) + "]";
+            if (it + 1 == inputs.points.end()) {
+                myfile << "\n";
+            } else {
+                myfile << ",\n";
+            }
         }
         myfile << "],\n";
         myfile << "\"springs\" : [\n";
         for (auto it = inputs.springs.begin(); it != inputs.springs.end(); ++it) {
-            myfile << "[ " + std::to_string((*it).p1) + ", " + std::to_string((*it).p2) + "],\n";
+            myfile << "[ " + std::to_string((*it).p1) + ", " + std::to_string((*it).p2) + "]";
+            if (it + 1 == inputs.springs.end()) {
+                myfile << "\n";
+            } else {
+                myfile << ",\n";
+            }
         }
         myfile << "],\n";
         myfile << "\"simulation\" : [\n";
         double t = 0;
-        double dt = 0.16667;
+        double dt = 1.0 / 24.0; // 24fps
         while (t < 10) {
             AsyncSimHandle handle = simulate(inputs.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval);
             resolveSim(handle);
             t += dt;
             myfile << "[\n";
-            for (auto it = inputs.points.begin(); it != inputs.points.end(); ++it) {
-                myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).y) + ", " + std::to_string((*it).z) + "],\n";
+            for (auto it = handle.points.begin(); it != handle.points.end(); ++it) {
+                myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
+                if (it + 1 == handle.points.end()) {
+                    myfile << "\n";
+                } else {
+                    myfile << ",\n";
+                }
             }
-            myfile << "],\n";
+            if (t >= 10) {
+                myfile << "]\n";
+            } else {
+                myfile << "],\n";
+            }
         }
         myfile << "]\n";
         myfile << "}";
