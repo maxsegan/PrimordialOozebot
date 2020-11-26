@@ -1,6 +1,9 @@
 import bpy
 import os
 import json
+import bmesh
+from mathutils import Vector
+from math import radians
 
 filepath = '/output/robo1256.txt'
 
@@ -30,6 +33,7 @@ class ANIM_OT_import_creature(bpy.types.Operator):
         return {'FINISHED'}
 
     def execute(op, context):
+        obj = context.active_object
         dirname = os.path.dirname(__file__)
         filename = dirname[:-len('blenderer.blend/')] + filepath
         with open(filename) as json_file:
@@ -37,14 +41,17 @@ class ANIM_OT_import_creature(bpy.types.Operator):
 
             vertices = []
             edges = []
+            faces = []
 
             for vertex in data["masses"]:
-                vertices.append((vertex[0], vertex[1], vertex[2]))
-
+                vertices.append((vertex[0], vertex[2], vertex[1]))
+            for edge in data["springs"]:
+                edges.append((edge[0], edge[1]))
             ## TODO!!! figure out what this whole mesh thing is and translate masses
             # Oh and faces
+            name = filepath[len('/output/'):]
             mesh = bpy.data.meshes.new(name="{} Mesh".format(name))
-            mesh.from_pydata(vertices, edges, data["mesh"]["faces"])
+            mesh.from_pydata(vertices, edges, faces)
             mesh.update()
             mesh.validate()
 
@@ -68,10 +75,9 @@ class ANIM_OT_import_creature(bpy.types.Operator):
                 bm.from_mesh(mesh)
 
                 bpy.context.scene.frame_set(frame_ctr)
-                pos = frame["positions"]
 
                 for i, v in enumerate(bm.verts):
-                    v.co = Vector((pos[3*i], pos[3*i + 1], pos[3*i + 2]))
+                    v.co = Vector((frame[i][0], frame[i][2], frame[i][1]))
                 # Finish up, write the bmesh back to the mesh
                 bm.to_mesh(mesh)
                 bm.free()  # free and prevent further access
