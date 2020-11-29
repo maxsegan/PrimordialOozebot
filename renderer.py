@@ -3,9 +3,8 @@ import os
 import json
 import bmesh
 from mathutils import Vector
-from math import radians
 
-filepath = '/output/robo1256.txt'
+filepath = '/output/bounce.txt'
 
 class VIEW3D_PT_creature_viz(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
@@ -42,11 +41,25 @@ class ANIM_OT_import_creature(bpy.types.Operator):
             vertices = []
             edges = []
             faces = []
+            facesMap = {}
 
             for vertex in data["masses"]:
-                vertices.append((vertex[0], vertex[2], vertex[1]))
+                vertices.append((vertex[0], vertex[1], vertex[2]))
+                
             for edge in data["springs"]:
                 edges.append((edge[0], edge[1]))
+                i = min(edge[0], edge[1])
+                j = max(edge[0], edge[1])
+                if not i in facesMap:
+                    facesMap[i] = []
+                if not j in facesMap:
+                    facesMap[j] = []
+                facesMap[i].append(j)
+            for i in facesMap:
+                for j in facesMap[i]:
+                    for k in facesMap[j]:
+                        if k in facesMap[i]:
+                            faces.append((i, j, k))
             ## TODO!!! figure out what this whole mesh thing is and translate masses
             # Oh and faces
             name = filepath[len('/output/'):]
@@ -77,7 +90,7 @@ class ANIM_OT_import_creature(bpy.types.Operator):
                 bpy.context.scene.frame_set(frame_ctr)
 
                 for i, v in enumerate(bm.verts):
-                    v.co = Vector((frame[i][0], frame[i][2], frame[i][1]))
+                    v.co = Vector((frame[i][0], frame[i][1], frame[i][2]))
                 # Finish up, write the bmesh back to the mesh
                 bm.to_mesh(mesh)
                 bm.free()  # free and prevent further access
@@ -86,7 +99,6 @@ class ANIM_OT_import_creature(bpy.types.Operator):
                 bpy.ops.anim.insert_keyframe_animall()
                 bpy.ops.object.mode_set(mode='OBJECT')
                 frame_ctr += 1
-            obj.rotation_euler = (radians(90), 0, 0)
 
 
 def register():
