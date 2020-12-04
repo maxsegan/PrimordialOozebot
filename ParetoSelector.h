@@ -38,18 +38,16 @@ public:
 
     void insertOozebot(OozebotEncoding encoding);
 
-    void selectAndMate();
-
-    void replaceLast(OozebotEncoding encoding);
+    // returns number of evaluations
+    int selectAndMate();
 
 private:
     std::vector<OozebotSortWrapper> generation;
     std::vector<double> indexToProbability;
     std::map<signed long int, int> idToIndex;
-    PendingSolution pendingSolution = {{}, {}, 0ul, 0ul};
 
     void sort();
-    void removeOozebotAtIndex(int i);
+    void removeAllOozebots();
     int selectionIndex();
 };
 

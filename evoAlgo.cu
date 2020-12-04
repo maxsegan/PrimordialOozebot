@@ -21,12 +21,11 @@ int main() {
 
     srand (time(NULL));
 
-    int maxEvaluations = 1000000; // TODO take as a param
+    int maxEvaluations = 100000; // TODO take as a param
     int minNumSolutions = 300; // TODO take as a param
-    double mutationRate = 0.25; // TODO take as a param
+    double mutationRate = 0.05; // TODO take as a param
 
     ParetoSelector generation(minNumSolutions, mutationRate);
-
 
     for (int i = 0; i < minNumSolutions; i++) {
         OozebotEncoding encoding = OozebotEncoding::randomEncoding();
@@ -39,23 +38,14 @@ int main() {
     }
 
     int numEvaluations = minNumSolutions;
+
+    // In this stage do baseball leagues too, maybe 100k iterations, then create another one (recursive) as it's competitor
     while (numEvaluations < maxEvaluations) {
-        // Regularly inject new random solutions at regular intervals
-        if (numEvaluations % 16 == 0) {
-            OozebotEncoding encoding = OozebotEncoding::randomEncoding();
-            AsyncSimHandle handle = OozebotEncoding::evaluate(encoding);
-            auto res = OozebotEncoding::wait(handle);
-            encoding.fitness = res.first;
-            encoding.numTouchesRatio = res.second;
-            generation.globalParetoFront.evaluateEncoding(encoding);
-            generation.replaceLast(encoding);
-        } else {
-            generation.selectAndMate();
-        }
+        numEvaluations += generation.selectAndMate();
         if (numEvaluations % 100 == 0) {
             printf("Finished run #%d\n", numEvaluations);
         }
-        numEvaluations += 1;
     }
+    // TODO hill climb at the end of each generation
     return 0;
 }

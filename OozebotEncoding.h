@@ -5,15 +5,11 @@
 #include "cudaSim.h"
 
 enum OozebotExpressionType {
-    massDeclaration, // kg
-    springDeclaration, // k, a, b, c all declared together
-    boxDeclaration, // combination of springs and masses
+    boxDeclaration, // combination of springs and masses - one size mass (kg), and spring config for all springs (k, a, b, c)
+    layAndMove, // Building block commands to form creation instructions
+    // Strings together a sequence of layAndMove commands with a "thickness" that's 1D, 2D, or 3D with radius provided
+    layBlockAndMoveCursor, // Takes in a lay and move index to iterator as well as "anchor" direction to grow out of + thickness
     symmetryScope, // creation commands within this scope are duplicated flipped along the x/y/z asis
-    fork, // same concept as symmetry scope but each split is independent TODO figure out the right way to encode this
-    // If a block already exists at this index it noops
-    layBlockAndMoveCursor, // Takes in a block idx and direction to move (up, down, left, right, forward, back)
-    layAndMove,
-    endScope,
 };
 
 enum OozebotDirection {
@@ -26,9 +22,10 @@ enum OozebotDirection {
 };
 
 enum OozebotAxis {
-    x,
-    y,
-    z,
+    xAxis,
+    yAxis,
+    zAxis,
+    noAxis,
 };
 
 class OozebotExpression {
@@ -40,12 +37,16 @@ public:
     float a; // expressed as a ratio of l0's natural length 0.5-2
     float b; // -0.5 - 0.5, often 0
     float c; // 0 - 2pi
+    int blockIdx; // which block to lay
     OozebotDirection direction;
     OozebotAxis scopeAxis;
-    int blockIdx; // which block to lay
     int layAndMoveIdx;
-    std::vector<int> pointIdxs;
-    std::vector<int> springIdxs;
+    int radius;
+    OozebotAxis thicknessIgnoreAxis;
+    // For extremities we grow out of the surface block reached from the center point moving in steps of these magnitude
+    int anchorX;
+    int anchorY;
+    int anchorZ;
 };
 
 struct SimInputs {
@@ -66,17 +67,15 @@ public:
     static SimInputs inputsFromEncoding(OozebotEncoding encoding);
 
     // Wait to get the fitness value - must call exactly once!
-    static AsyncSimHandle evaluate(OozebotEncoding encoding);
+    static AsyncSimHandle evaluate(OozebotEncoding encoding, int streamNum);
     static std::pair<double, double> wait(AsyncSimHandle handle);
 
     static OozebotEncoding randomEncoding();
 
     // DSL that generates the SimInputs
-    // TODO improve linkage
-    std::vector<OozebotExpression> massCommands;
-    std::vector<OozebotExpression> springCommands;
     std::vector<OozebotExpression> boxCommands;
-    std::vector<std::vector<OozebotExpression>> layAndMoveSequences;
+    std::vector<std::vector<OozebotExpression>> layAndMoveCommands;
+    OozebotExpression bodyCommand;
     std::vector<OozebotExpression> growthCommands;
 };
 

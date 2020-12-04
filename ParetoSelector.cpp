@@ -31,104 +31,52 @@ void ParetoSelector::insertOozebot(OozebotEncoding encoding) {
     this->generation.push_back(wrapper);
 }
 
-void ParetoSelector::removeOozebotAtIndex(int i) {
-    OozebotSortWrapper wrapper = this->generation[i];
-    unsigned long int removedId = wrapper.encoding.id;
-    for (auto it = wrapper.dominating.begin(); it != wrapper.dominating.end(); ++it) {
-        int index = this->idToIndex[(*it)];
-        this->generation[index].dominationDegree -= 1;
-        for (auto iter = this->generation[index].dominated.begin(); iter != this->generation[index].dominated.end(); iter++) {
-            if ((*iter) == removedId) {
-                this->generation[index].dominated.erase(iter);
-                break;
-            }
-        }
-    }
-    for (auto it = wrapper.dominated.begin(); it != wrapper.dominated.end(); ++it) {
-        int idx = this->idToIndex[(*it)];
-        for (auto iter = this->generation[idx].dominating.begin(); iter != this->generation[idx].dominating.end(); iter++) {
-            if ((*iter) == removedId) {
-                this->generation[idx].dominating.erase(iter);
-                break;
-            }
-        }
-    }
-    this->generation.erase(this->generation.begin() + i);
-    while (i < generation.size()) {
-        unsigned long int id = generation[i].encoding.id;
-        this->idToIndex[id] -= 1;
-        i++;
-    }
-}
-
-void ParetoSelector::replaceLast(OozebotEncoding encoding) {
-    this->removeOozebotAtIndex(this->generationSize - 1);
-    this->insertOozebot(encoding);
+void ParetoSelector::removeAllOozebots() {
+    this->generation.clear();
+    this->idToIndex.clear();
 }
 
 // Crowding is maintained by dividing the entire
 // search space deterministically in subspaces, where is the
 // depth parameter and is the number of decision variables, and
 // by updating the subspaces dynamically
-void ParetoSelector::selectAndMate() {
+int ParetoSelector::selectAndMate() {
     this->sort();
 
-    int i = this->selectionIndex();
-    int j = this->selectionIndex();
-    while (j == i) {
-        j = this->selectionIndex();
+    std::vector<OozebotEncoding> newGeneration = {
+        this->generation[0].encoding,
+        this->generation[1].encoding,
+        this->generation[2].encoding,
+        this->generation[3].encoding,
+        this->generation[4].encoding
+    };
+    std::vector<PendingSolution> asyncHandles;
+
+    while (newGeneration.size() + asyncHandles.size() < this->generationSize) {
+        int i = this->selectionIndex();
+        int j = this->selectionIndex();
+        while (j == i) {
+            j = this->selectionIndex();
+        }
+        OozebotEncoding child = OozebotEncoding::mate(this->generation[i].encoding, this->generation[j].encoding);
+        double r = (double) rand() / RAND_MAX;
+        if (r < this->mutationProbability) {
+            child = mutate(child);
+        }
+        PendingSolution handle = { OozebotEncoding::evaluate(child), child, this->generation[i].encoding.id, this->generation[j].encoding.id };
+        asyncHandles.push_back(handle);
     }
-    OozebotEncoding child = OozebotEncoding::mate(this->generation[i].encoding, this->generation[j].encoding);
-    double r = (double) rand() / RAND_MAX;
-    if (r < this->mutationProbability) {
-        child = mutate(child);
-    }
-    PendingSolution handle = {OozebotEncoding::evaluate(child), child, this->generation[i].encoding.id, this->generation[j].encoding.id};
-    PendingSolution previousHandle = this->pendingSolution;
-    this->pendingSolution = handle;
-    if (previousHandle.firstId == previousHandle.secondId) {
-        return;
-    }
-    auto res = OozebotEncoding::wait(previousHandle.handle);
-    child = previousHandle.encoding;
-    child.fitness = res.first;
-    child.numTouchesRatio = res.second;
-    globalParetoFront.evaluateEncoding(child);
-    if (this->idToIndex.find(previousHandle.firstId) == this->idToIndex.end()) {
-        i = -1;
-    } else {
-        i = this->idToIndex[previousHandle.firstId];
-    }
-    if (this->idToIndex.find(previousHandle.secondId) == this->idToIndex.end()) {
-        j = -1;
-    } else {
-        j = this->idToIndex[previousHandle.secondId];
+    this->removeAllOozebots();
+    for (auto it = asyncHandles.start(); it != asyncHandles.end(); it++) {
+        auto res = OozebotEncoding::wait(previousHandle.handle);
+        child = previousHandle.encoding;
+        child.fitness = res.first;
+        child.numTouchesRatio = res.second;
+        globalParetoFront.evaluateEncoding(child);
+        this->insertOozebot(child);
     }
 
-    // children are compared to parent - if they dominate they replace
-    // If neither dominates, child is compared to the global pareto front - if it's in it it replaces the parent
-    // If not, we keep it if it's in a less crowded region than the parent
-    if (i != -1 && dominates(child, this->generation[i].encoding)) {
-        this->removeOozebotAtIndex(i);
-        this->insertOozebot(child);
-    } else if (j != -1 && dominates(child, this->generation[j].encoding)) {
-        this->removeOozebotAtIndex(j);
-        this->insertOozebot(child);
-    } else if (i != -1 && !dominates(this->generation[i].encoding, child)) {
-        double childNovelty = this->globalParetoFront.noveltyDegreeForEncoding(child);
-        double iNovelty = this->globalParetoFront.noveltyDegreeForEncoding(this->generation[i].encoding);
-        if (childNovelty > iNovelty) {
-            this->removeOozebotAtIndex(i);
-            this->insertOozebot(child);
-        }
-    } else if (j != -1 && !dominates(this->generation[j].encoding, child)) {
-        double childNovelty = this->globalParetoFront.noveltyDegreeForEncoding(child);
-        double jNovelty = this->globalParetoFront.noveltyDegreeForEncoding(this->generation[j].encoding);
-        if (childNovelty > jNovelty) {
-            this->removeOozebotAtIndex(j);
-            this->insertOozebot(child);
-        }
-    }
+    return asyncHandles.size();
 }
 
 // Sort is O(N^2)
