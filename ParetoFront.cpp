@@ -128,9 +128,5 @@ void ParetoFront::resize() {
 
 double ParetoFront::noveltyDegreeForEncoding(OozebotEncoding encoding) {
     int touchesBucket = round(encoding.numTouchesRatio / this->touchesBucketSize);
-    if (this->buckets.size() < touchesBucket) {
-        printf("ERROR bucket index out of bounds\n");
-        return 1;
-    }
     return 1 / this->buckets[touchesBucket].size();  
 }

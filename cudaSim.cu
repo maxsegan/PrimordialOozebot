@@ -10,6 +10,17 @@
 
 // Usage: nvcc -O2 /std:c++17 cudaSim.cu -o cudaSim -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64"
 
+static void HandleError( cudaError_t err,
+                         const char *file,
+                         int line ) {
+    if (err != cudaSuccess) {
+        printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
+                file, line );
+        exit( EXIT_FAILURE );
+    }
+}
+#define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
+
 void genPointsAndSprings(
 	std::vector<Point> &points,
 	std::vector<Spring> &springs);
@@ -148,7 +159,7 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     points[i] = p;
 }
 
-AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency) {
+AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum) {
     if (points.size() == 0) {
         return { {}, NULL, NULL, NULL};
     }
@@ -162,17 +173,27 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     }
     start = start / points.size();
 
+    int nDevices;
+    int deviceNumber = 0;
+    HandleError(cudaGetDeviceCount(&nDevices));
+    if (nDevices > 1) {
+        deviceNumber = streamNum % nDevices;
+        HandleError(cudaSetDevice(deviceNumber));
+    }
+    cudaStream_t stream;
+    HandleError(cudaStreamCreate(&stream));
+
     Point *p_d;
     Spring *s_d;
     SpringDelta *ps_d;
-    cudaMalloc(&p_d, points.size() * sizeof(Point));
-    cudaMemcpy(p_d, &points[0], points.size() * sizeof(Point), cudaMemcpyHostToDevice);
+    HandleError(cudaHostAlloc(&p_d, points.size() * sizeof(Point)));
+    HandleError(cudaMemcpyAsync(p_d, &points[0], points.size() * sizeof(Point), cudaHostAllocDefault, stream));
 
-    cudaMalloc(&s_d, springs.size() * sizeof(Spring));
-    cudaMemcpy(s_d, &springs[0], springs.size() * sizeof(Spring), cudaMemcpyHostToDevice);
+    HandleError(cudaHostAlloc(&s_d, springs.size() * sizeof(Spring)));
+    HandleError(cudaMemcpyAsync(s_d, &springs[0], springs.size() * sizeof(Spring), cudaHostAllocDefault, stream));
 
-    cudaMalloc(&ps_d, pointSprings.size() * sizeof(SpringDelta));
-    cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaMemcpyHostToDevice);
+    HandleError(cudaHostAlloc(&ps_d, pointSprings.size() * sizeof(SpringDelta)));
+    HandleError(cudaMemcpyAsync(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaHostAllocDefault, stream));
 
     double t = 0;
     int numPoints = points.size();
@@ -204,7 +225,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     }
 
     //std::vector<Point> newPoints(points.size(), {0, 0, 0, 0, 0, 0, 0, 0, 0});
-    return {points, p_d, s_d, ps_d, start};
+    return {points, p_d, s_d, ps_d, start, deviceNumber, stream};
  
     //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     //auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
@@ -215,11 +236,13 @@ void resolveSim(AsyncSimHandle &handle) {
     if (handle.points.size() == 0) {
         return;
     }
-    cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost);
+    HandleError(cudaSetDevice(handle.deviceNumber));
+    HandleError(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
     
-    cudaFree(handle.p_d);
-    cudaFree(handle.s_d);
-    cudaFree(handle.ps_d);
+    HandleError(cudaFreeHost(handle.p_d));
+    HandleError(cudaFreeHost(handle.s_d));
+    HandleError(cudaFreeHost(handle.ps_d));
+    HandleError(cudaStreamDestroy(handle.stream));
 }
 
 int mains() {
