@@ -1,6 +1,7 @@
 #include <math.h>
 #include <vector>
 #include <map>
+#include <time.h>
 #include "OozebotEncoding.h"
 #include "ParetoSelector.h"
 //#include <chrono>
@@ -17,6 +18,8 @@ int main() {
     // – Evolvability
     // – Novelty / Diversity
     // – Robustness / sensitivity
+
+    srand (time(NULL));
 
     int maxEvaluations = 1000000; // TODO take as a param
     int minNumSolutions = 300; // TODO take as a param
