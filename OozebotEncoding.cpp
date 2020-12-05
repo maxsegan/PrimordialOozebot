@@ -5,19 +5,29 @@
 #include <algorithm>
 #include <utility>
 #include <map>
+#include <atomic>
+#include <random>
 
 #include "oozebotEncoding.h"
 
 const int kNumBoxes = 6;
 const int kMaxLayAndMoveSequences = 4;
 const int kMaxLayAndMoveLength = 25;
-const int kMaxGrowthCommands = 10;
-const int kMaxRadius = 10;
+const int kMaxGrowthCommands = 6;
+const int kMaxRadius = 6;
 
-signed long int GlobalId = 1;
+std::atomic<unsigned long int> GlobalId(1);
 
 bool springSortFunction(OozebotExpression a, OozebotExpression b) {
     return (a.b > b.b);
+}
+
+int randomInRange(const int min, const int max) {
+    return rand() % (max + 1);
+}
+
+double randFloat() {
+    return (double) randomInRange(0, 99999) / 99999;
 }
 
 OozebotEncoding OozebotEncoding::randomEncoding() {
@@ -26,24 +36,24 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
     for (int i = 0; i < kNumBoxes; i++) {
         OozebotExpression boxCreationExpression;
         boxCreationExpression.expressionType = boxDeclaration;
-        boxCreationExpression.kg = 0.01 + (rand() / RAND_MAX) * 0.99;
-        double r = (double) rand() / RAND_MAX; // 0 to 1
+        boxCreationExpression.kg = 0.01 + randFloat() * 0.99;
+        double r = randFloat(); // 0 to 1
         boxCreationExpression.k = 500 + r * 9500;
-        r = (double) rand() / RAND_MAX; // 0 to 1
+        r = randFloat(); // 0 to 1
         if (r < 0.5) { // half the time have it be 1
             boxCreationExpression.a = 1;
         } else {
-            r = (double) rand() / RAND_MAX; // 0 to 1
-            boxCreationExpression.a = 0.5 + r * 1.5;
+            r = randFloat(); // 0 to 1
+            boxCreationExpression.a = 0.5 + r;
         }
-        r = (double) rand() / RAND_MAX; // 0 to 1
-        if (r < 0.5) { // half the time have it not expand/contract
+        r = randFloat(); // 0 to 1
+        if (r < 0.2) { // have it not expand/contract
             boxCreationExpression.b = 0;
         } else {
-            r = (double) rand() / RAND_MAX; // 0 to 1
-            boxCreationExpression.b = -0.5 + r;
+            r = randFloat(); // 0 to 1
+            boxCreationExpression.b = -0.8 + r * 1.6;
         }
-        r = (double) rand() / RAND_MAX; // 0 to 1
+        r = randFloat(); // 0 to 1
         boxCreationExpression.c = r * 2 * M_PI;
         boxCommands.push_back(boxCreationExpression);
     }
@@ -59,25 +69,25 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
             layAndMoveExpression.expressionType = layAndMove;
             // Add bias to duplicate direction and type
             if (j > 0) {
-                double r = (double) rand() / RAND_MAX; // 0 to 1
+                double r = randFloat(); // 0 to 1
                 if (r < 0.5) { // Half the time we keep the same direction
                     layAndMoveExpression.direction = sequence[j - 1].direction;
                 } else {
-                    layAndMoveExpression.direction = rand() % 6;
+                    layAndMoveExpression.direction = static_cast<OozebotDirection>(randomInRange(0, 5));
                 }
-                r = (double) rand() / RAND_MAX; // 0 to 1
+                r = randFloat(); // 0 to 1
                 if (r < 0.5) { // half the time we keep the same block type
                     layAndMoveExpression.blockIdx = sequence[j - 1].blockIdx;
                 } else {
-                    layAndMoveExpression.blockIdx = rand() % kNumBoxes;
+                    layAndMoveExpression.blockIdx = randomInRange(0, kNumBoxes - 1);
                 }
             } else {
-                layAndMoveExpression.direction = rand() % 6;
-                layAndMoveExpression.blockIdx = rand() % kNumBoxes;
+                layAndMoveExpression.direction = static_cast<OozebotDirection>(randomInRange(0, 5));
+                layAndMoveExpression.blockIdx = randomInRange(0, kNumBoxes - 1);
             }
             sequence.push_back(layAndMoveExpression);
 
-            double r = (double) rand() / RAND_MAX; // 0 to 1
+            double r = randFloat(); // 0 to 1
             if (r < 0.02) { // Don't always have to be full length, end early 2% of the time for each iteration
                 break;
             }
@@ -87,40 +97,40 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 
     OozebotExpression bodyCommand;
     bodyCommand.expressionType = layBlockAndMoveCursor;
-    bodyCommand.layAndMoveIdx = rand() % kMaxLayAndMoveSequences;
-    bodyCommand.radius = rand() % kMaxRadius;
-    bodyCommand.thicknessIgnoreAxis = rand() % 4; // sometimes make body 2D
+    bodyCommand.layAndMoveIdx = randomInRange(0, kMaxLayAndMoveSequences - 1);
+    bodyCommand.radius = randomInRange(0, kMaxRadius - 1);
+    bodyCommand.thicknessIgnoreAxis = static_cast<OozebotAxis>(randomInRange(0, 3)); // sometimes make body 2D
 
     std::vector<OozebotExpression> growthCommands;
     for (int i = 0; i < kMaxGrowthCommands; i++) {
-        double r = (double) rand() / RAND_MAX; // 0 to 1
+        double r = randFloat(); // 0 to 1
         OozebotExpression growthExpression;
         if (r < 0.4) {
             growthExpression.expressionType = symmetryScope;
-            growthExpression.scopeAxis = rand() % 3;
+            growthExpression.scopeAxis = static_cast<OozebotAxis>(randomInRange(0, 2));
         } else {
             growthExpression.expressionType = layBlockAndMoveCursor;
-            growthExpression.layAndMoveIdx = rand() % kMaxLayAndMoveSequences;
-            growthExpression.radius = rand() % kMaxRadius;
-            growthExpression.thicknessIgnoreAxis = rand() % 4; // sometimes make body 2D
-            growthExpression.anchorX = rand() % 11 - 5;
-            growthExpression.anchorY = rand() % 11 - 5;
-            growthExpression.anchorZ = rand() % 11 - 5;
+            growthExpression.layAndMoveIdx = randomInRange(0, kMaxLayAndMoveSequences - 1);
+            growthExpression.radius = randomInRange(0, kMaxRadius - 1);
+            growthExpression.thicknessIgnoreAxis = static_cast<OozebotAxis>(randomInRange(0, 3)); // sometimes make body 2D
+            growthExpression.anchorX = randomInRange(-5, 5);
+            growthExpression.anchorY = randomInRange(-5, 5);
+            growthExpression.anchorZ = randomInRange(-5, 5);
             while (growthExpression.anchorX == 0 && growthExpression.anchorY == 0 && growthExpression.anchorZ == 0) {
-                growthExpression.anchorX = rand() % 11 - 5;
-                growthExpression.anchorY = rand() % 11 - 5;
-                growthExpression.anchorZ = rand() % 11 - 5;
+                growthExpression.anchorX = randomInRange(-5, 5);
+                growthExpression.anchorY = randomInRange(-5, 5);
+                growthExpression.anchorZ = randomInRange(-5, 5);
             }
         }
         growthCommands.push_back(growthExpression);
-        r = (double) rand() / RAND_MAX;
+        r = randFloat();
     }
 
     OozebotEncoding encoding;
-    double r = (double) rand() / RAND_MAX; // 0 to 1
-    encoding.globalTimeInterval = 0.1 + r * 0.9;
+    double r = randFloat(); // 0 to 1
+    encoding.globalTimeInterval = 1 + r * 9;
     encoding.numTouchesRatio = 0;
-    encoding.id = GlobalId++;
+    encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed); ;
     encoding.boxCommands = boxCommands;
     encoding.layAndMoveCommands = layAndMoveSequences;
     encoding.bodyCommand = bodyCommand;
@@ -132,7 +142,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding parent2) {
     OozebotEncoding child;
     child.boxCommands = {};
-    int boxSplit = rand() % kNumBoxes;
+    int boxSplit = randomInRange(0, kNumBoxes - 1);
     for (int i = 0; i < boxSplit; i++) {
         child.boxCommands.push_back(parent1.boxCommands[i]);
     }
@@ -141,18 +151,18 @@ OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding p
     }
     std::sort(child.boxCommands.begin(), child.boxCommands.end(), springSortFunction);
 
-    child.layAndMoveSequences = {};
-    int laySplit = rand() % kMaxLayAndMoveSequences;
+    child.layAndMoveCommands = {};
+    int laySplit = randomInRange(0, kMaxLayAndMoveSequences - 1);
     for (int i = 0; i < laySplit; i++) {
-        child.layAndMoveSequences.push_back(parent1.layAndMoveSequences[i]);
+        child.layAndMoveCommands.push_back(parent1.layAndMoveCommands[i]);
     }
     for (int i = laySplit; i < kMaxLayAndMoveSequences; i++) {
-        child.layAndMoveSequences.push_back(parent2.layAndMoveSequences[i]);
+        child.layAndMoveCommands.push_back(parent2.layAndMoveCommands[i]);
     }
     child.bodyCommand = parent1.bodyCommand;
 
-    child.growthCommands = {}
-    int growthSplit = rand() % kMaxGrowthCommands;
+    child.growthCommands = {};
+    int growthSplit = randomInRange(0, kMaxGrowthCommands - 1);
     for (int i = 0; i < growthSplit; i++) {
         child.growthCommands.push_back(parent1.growthCommands[i]);
     }
@@ -166,32 +176,32 @@ OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding p
 
 OozebotEncoding mutate(OozebotEncoding encoding) {
     // Mutate either a box command, lay and move command, body, or growth
-    int r = rand() % 100;
+    int r = randomInRange(0, 99);
     if (r < 5) { // 5% of the time do the body
-        r = rand() % 100;
+        r = randomInRange(0, 99);
         if (r < 10) {
-            encoding.bodyCommand.layAndMoveIdx = rand() % kMaxLayAndMoveSequences;
+            encoding.bodyCommand.layAndMoveIdx = randomInRange(0, kMaxLayAndMoveSequences - 1);
         } else if (r < 20) {
-            encoding.bodyCommand.thicknessIgnoreAxis = rand() % 4; // sometimes make body 2D
+            encoding.bodyCommand.thicknessIgnoreAxis = static_cast<OozebotAxis>(randomInRange(0, 3)); // sometimes make body 2D
         } else {
-            int newRadius = encoding.bodyCommand.radius + (rand() % 2 ? 1 : -1);
+            int newRadius = encoding.bodyCommand.radius + (randomInRange(0, 1) ? 1 : -1);
             encoding.bodyCommand.radius = std::max(std::min(newRadius, 0), kMaxRadius);
         }
     } else if (r < 30) {
-        int index = rand() % encoding.boxCommands.size();
-        double seed = (double) rand() / RAND_MAX - 0.5; // -0.5 to 0.5
-        r = rand() % 5;
+        int index = randomInRange(0, encoding.boxCommands.size() - 1);
+        double seed = randFloat() - 0.5; // -0.5 to 0.5
+        r = randomInRange(0, 4);
         if (r == 0) {
             double k = encoding.boxCommands[index].k;
             k += std::min(std::max(seed * 100, 500.0), 10000.0);
             encoding.boxCommands[index].k = k;
         } else if (r == 1) {
             double a = encoding.boxCommands[index].a;
-            a += std::min(std::max(seed * 0.1, 0.5), 2.0);
+            a += std::min(std::max(seed * 0.1, 0.5), 1.5);
             encoding.boxCommands[index].a = a;
         } else if (r == 2) {
             double b = encoding.boxCommands[index].b;
-            b += std::min(std::max(seed * 0.05, -0.5), 0.5);
+            b += std::min(std::max(seed * 0.05, -0.8), 0.8);
             encoding.boxCommands[index].b = b;
         } else if (r == 3) {
             double c = encoding.boxCommands[index].c;
@@ -204,36 +214,36 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
         }
         std::sort(encoding.boxCommands.begin(), encoding.boxCommands.end(), springSortFunction);
     } else if (r < 60) {
-        int index = rand() % encoding.layAndMoveCommands.size();
-        int subIndex = rand() % encoding.layAndMoveCommands[index].size();
-        encoding.layAndMoveCommands[index][subIndex].direction = rand() % 6;
-        encoding.layAndMoveCommands[index][subIndex].blockIdx = rand() % kNumBoxes;
+        int index = randomInRange(0, encoding.layAndMoveCommands.size() - 1);
+        int subIndex = randomInRange(0, encoding.layAndMoveCommands[index].size() - 1);
+        encoding.layAndMoveCommands[index][subIndex].direction = static_cast<OozebotDirection>(randomInRange(0, 5));
+        encoding.layAndMoveCommands[index][subIndex].blockIdx = randomInRange(0, kNumBoxes - 1);
     } else {
-        int index = rand() % encoding.growthCommands.size();
+        int index = randomInRange(0, encoding.growthCommands.size() - 1);
         if (encoding.growthCommands[index].expressionType == symmetryScope) {
-            encoding.growthCommands[index].scopeAxis = rand() % 3;
+            encoding.growthCommands[index].scopeAxis = static_cast<OozebotAxis>(randomInRange(0, 2));
         } else {
-            r = rand() % 100;
+            r = randomInRange(0, 99);
             if (r < 20) {
-                encoding.growthCommands[index].layAndMoveIdx = rand() % kMaxLayAndMoveSequences;
+                encoding.growthCommands[index].layAndMoveIdx = randomInRange(0, kMaxLayAndMoveSequences - 1);
             } else if (r < 40) {
-                encoding.growthCommands[index].radius = rand() % kMaxRadius;
+                encoding.growthCommands[index].radius = randomInRange(0, kMaxRadius - 1);
             } else if (r < 70) {
-                growthExpression.thicknessIgnoreAxis = rand() % 4; // sometimes make body 2D
+                encoding.growthCommands[index].thicknessIgnoreAxis = static_cast<OozebotAxis>(randomInRange(0, 3)); // sometimes make body 2D
             } else if (r < 80) {
-                int newAnchor = growthExpression.anchorX + rand() % 2 ? -1 : 1;
-                growthExpression.anchorX = std::max(std::min(newAnchor, -5), 5);
+                int newAnchor = encoding.growthCommands[index].anchorX + randomInRange(0, 1) ? -1 : 1;
+                encoding.growthCommands[index].anchorX = std::max(std::min(newAnchor, -5), 5);
             } else if (r < 90) {
-                int newAnchor = growthExpression.anchorY + rand() % 2 ? -1 : 1;
-                growthExpression.anchorY = std::max(std::min(newAnchor, -5), 5);
+                int newAnchor = encoding.growthCommands[index].anchorY + randomInRange(0, 1) ? -1 : 1;
+                encoding.growthCommands[index].anchorY = std::max(std::min(newAnchor, -5), 5);
             } else {
-                int newAnchor = growthExpression.anchorZ + rand() % 2 ? -1 : 1;
-                growthExpression.anchorZ = std::max(std::min(newAnchor, -5), 5);
+                int newAnchor = encoding.growthCommands[index].anchorZ + randomInRange(0, 1) ? -1 : 1;
+                encoding.growthCommands[index].anchorZ = std::max(std::min(newAnchor, -5), 5);
             }
-            while (growthExpression.anchorX == 0 && growthExpression.anchorY == 0 && growthExpression.anchorZ == 0) {
-                growthExpression.anchorX = rand() % 11 - 5;
-                growthExpression.anchorY = rand() % 11 - 5;
-                growthExpression.anchorZ = rand() % 11 - 5;
+            while (encoding.growthCommands[index].anchorX == 0 && encoding.growthCommands[index].anchorY == 0 && encoding.growthCommands[index].anchorZ == 0) {
+                encoding.growthCommands[index].anchorX = randomInRange(-5, 5);
+                encoding.growthCommands[index].anchorY = randomInRange(-5, 5);
+                encoding.growthCommands[index].anchorZ = randomInRange(-5, 5);
             }
         }
     }
@@ -255,6 +265,7 @@ AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum
 std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     resolveSim(handle);
     if (handle.points.size() == 0) {
+        printf("failure\n");
         return {0, 0};
     }
     double end = 0;
@@ -354,9 +365,9 @@ int processExtremity(
         // First we "lay" the current block and ones around it, respecting proximity of radius
         int minX = x - radius;
         int maxX = x + radius;
-        int minY = y + radius;
+        int minY = y - radius;
         int maxY = y + radius;
-        int minZ = x + radius;
+        int minZ = z - radius;
         int maxZ = z + radius;
         if (thicknessIgnoreAxis == xAxis) {
             minX = x;
@@ -371,7 +382,7 @@ int processExtremity(
 
         for (int xi = minX; xi <= maxX; xi++) {
             if (boxIndexSpringType.find(xi) == boxIndexSpringType.end()) {
-                std::map<int, bool> innerMap;
+                std::map<int, std::map<int, std::pair<int, int>>> innerMap;
                 boxIndexSpringType[xi] = innerMap;
             }
             for (int yi = minY; yi <= maxY; yi++) {
@@ -380,7 +391,7 @@ int processExtremity(
                     continue;
                 }
                 if (boxIndexSpringType[xi].find(yi) == boxIndexSpringType[xi].end()) {
-                    std::map<int, bool> innerMap;
+                    std::map<int, std::pair<int, int>> innerMap;
                     boxIndexSpringType[xi][yi] = innerMap;
                 }
                 for (int zi = minZ; zi <= maxZ; zi++) {
@@ -449,7 +460,7 @@ int processExtremity(
     return globalMinY;
 }
 
-bool outOfBounds(std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> &bodyIndexSpringType, int x, int y, int z) {
+bool outOfBounds(std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> &boxIndexSpringType, int x, int y, int z) {
     if (boxIndexSpringType.find(x) == boxIndexSpringType.end() ||
         boxIndexSpringType[x].find(y) == boxIndexSpringType[x].end() ||
         boxIndexSpringType[x][y].find(z) == boxIndexSpringType[x][y].end()) {
@@ -553,7 +564,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     // x -> y -> z -> (distance, box_index)
     std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> bodyIndexSpringType;
     int minY = processExtremity(
-        encoding.layAndMoveSequences[encoding.bodyCommand.layAndMoveIdx],
+        encoding.layAndMoveCommands[encoding.bodyCommand.layAndMoveIdx],
         bodyIndexSpringType,
         encoding.bodyCommand.radius,
         encoding.bodyCommand.thicknessIgnoreAxis,
@@ -579,11 +590,11 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
             }
         } else { // it's a lay command
             // lay the anchors for each
-            for (int flipX = 0; flipX < invertX ? 1 : 2; flipX++) {
-                for (int flipY = 0; flipY < invertY ? 1 : 2; flipY++) {
-                    for (int flipZ = 0; flipZ < invertZ ? 1 : 2; flipZ++) {
-                        minY = processExtremityWithAnchor(
-                            encoding.layAndMoveSequences[cmd.layAndMoveIdx],
+            for (int flipX = 0; flipX < (invertX ? 1 : 2); flipX++) {
+                for (int flipY = 0; flipY < (invertY ? 1 : 2); flipY++) {
+                    for (int flipZ = 0; flipZ < (invertZ ? 1 : 2); flipZ++) {
+                        minY = std::min(processExtremityWithAnchor(
+                            encoding.layAndMoveCommands[cmd.layAndMoveIdx],
                             bodyIndexSpringType,
                             extremityIndexSpringType,
                             cmd.radius,
@@ -593,7 +604,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
                             cmd.anchorZ,
                             !!flipX,
                             !!flipY,
-                            !!flipZ);
+                            !!flipZ), minY);
                     }
                 }
             }
@@ -613,9 +624,9 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     for (auto iter = bodyIndexSpringType.begin(); iter != bodyIndexSpringType.end(); iter++) {
         int x = iter->first;
         for (auto ite = iter->second.begin(); ite != iter->second.end(); ite++) {
-            int y = ite=>first;
+            int y = ite->first;
             for (auto it = ite->second.begin(); it != ite->second.end(); it++) {
-                z = it->first;
+                int z = it->first;
                 int boxIndex = it->second.second;
                 layBlockAtPosition(
                     x,
@@ -625,7 +636,28 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
                     springs,
                     pointLocationToIndexMap,
                     pointIndexHasSpring,
-                    encoding.boxCommands[boxIndex]
+                    encoding.boxCommands[boxIndex],
+                    boxIndex);
+            }
+        }
+    }
+    // Now we lay the extremities
+    for (auto iter = extremityIndexSpringType.begin(); iter != extremityIndexSpringType.end(); iter++) {
+        int x = iter->first;
+        for (auto ite = iter->second.begin(); ite != iter->second.end(); ite++) {
+            int y = ite->first;
+            for (auto it = ite->second.begin(); it != ite->second.end(); it++) {
+                int z = it->first;
+                int boxIndex = it->second.second;
+                layBlockAtPosition(
+                    x,
+                    y,
+                    z,
+                    points,
+                    springs,
+                    pointLocationToIndexMap,
+                    pointIndexHasSpring,
+                    encoding.boxCommands[boxIndex],
                     boxIndex);
             }
         }

@@ -18,8 +18,6 @@ struct OozebotSortWrapper {
 struct PendingSolution {
     AsyncSimHandle handle;
     OozebotEncoding encoding;
-    unsigned long int firstId;
-    unsigned long int secondId;
 };
 
 class ParetoSelector {

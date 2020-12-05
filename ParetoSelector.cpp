@@ -50,33 +50,43 @@ int ParetoSelector::selectAndMate() {
         this->generation[3].encoding,
         this->generation[4].encoding
     };
-    std::vector<PendingSolution> asyncHandles;
 
-    while (newGeneration.size() + asyncHandles.size() < this->generationSize) {
-        int i = this->selectionIndex();
-        int j = this->selectionIndex();
-        while (j == i) {
-            j = this->selectionIndex();
+    OozebotEncoding previousEncoding;
+    AsyncSimHandle previousHandle;
+
+    for (int i = 0; i <= this->generationSize - 5; i++) {
+        OozebotEncoding encoding = previousEncoding;
+        AsyncSimHandle handle = previousHandle;
+        if (i != this->generationSize - 5) {
+            int k = this->selectionIndex();
+            int j = this->selectionIndex();
+            while (j == k) {
+                j = this->selectionIndex();
+            }
+            previousEncoding = OozebotEncoding::mate(this->generation[k].encoding, this->generation[j].encoding);
+            double r = (double) rand() / RAND_MAX;
+            if (r < this->mutationProbability) {
+                previousEncoding = mutate(previousEncoding);
+            }
+            previousHandle = OozebotEncoding::evaluate(previousEncoding, i);
         }
-        OozebotEncoding child = OozebotEncoding::mate(this->generation[i].encoding, this->generation[j].encoding);
-        double r = (double) rand() / RAND_MAX;
-        if (r < this->mutationProbability) {
-            child = mutate(child);
+        if (i > 0) {
+            printf("Evaluating %d\n", i - 1);
+            auto res = OozebotEncoding::wait(handle);
+            encoding.fitness = res.first;
+            printf("Fitness was %f\n", encoding.fitness);
+            encoding.numTouchesRatio = res.second;
+            this->globalParetoFront.evaluateEncoding(encoding);
+            newGeneration.push_back(encoding);
         }
-        PendingSolution handle = { OozebotEncoding::evaluate(child), child, this->generation[i].encoding.id, this->generation[j].encoding.id };
-        asyncHandles.push_back(handle);
     }
+
     this->removeAllOozebots();
-    for (auto it = asyncHandles.start(); it != asyncHandles.end(); it++) {
-        auto res = OozebotEncoding::wait(previousHandle.handle);
-        child = previousHandle.encoding;
-        child.fitness = res.first;
-        child.numTouchesRatio = res.second;
-        globalParetoFront.evaluateEncoding(child);
-        this->insertOozebot(child);
+    for (auto it = newGeneration.begin(); it != newGeneration.end(); it++) {
+        this->insertOozebot(*it);
     }
 
-    return asyncHandles.size();
+    return this->generationSize - 5;
 }
 
 // Sort is O(N^2)

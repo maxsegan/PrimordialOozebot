@@ -4,7 +4,7 @@ import json
 import bmesh
 from mathutils import Vector
 
-filepath = '/output/bounce.txt'
+filepath = '/output/robo126.txt'
 
 class VIEW3D_PT_creature_viz(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'

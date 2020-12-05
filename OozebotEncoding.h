@@ -34,8 +34,8 @@ public:
 
     float kg; // 0.01 - 1 
     float k; // 500 - 10,000
-    float a; // expressed as a ratio of l0's natural length 0.5-2
-    float b; // -0.5 - 0.5, often 0
+    float a; // expressed as a ratio of l0's natural length 0.5-1.5
+    float b; // -0.8 - 0.8, often 0
     float c; // 0 - 2pi
     int blockIdx; // which block to lay
     OozebotDirection direction;

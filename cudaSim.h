@@ -2,6 +2,7 @@
 #define CUDA_SIM
 
 #include <vector>
+#include <cuda_runtime.h>
 
 struct Point {
   float x; // meters
@@ -45,7 +46,6 @@ struct AsyncSimHandle {
   SpringDelta *ps_d;
   double start;
   int device;
-  cudaStream_t stream;
 };
 
 // Updates the x, y, and z values of the points after running a simulation for n seconds

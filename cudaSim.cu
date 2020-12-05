@@ -45,9 +45,7 @@ __global__ void update_spring(
     double preset2,
     double preset3,
     double preset4,
-    double preset5,
-    double preset6,
-    double preset7) {
+    double preset5) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
 
@@ -81,12 +79,6 @@ __global__ void update_spring(
             break;
         case 5:
             adjust = preset5;
-            break;
-        case 6:
-            adjust = preset6;
-            break;
-        case 7:
-            adjust = preset7;
             break;
         default:
             adjust = 1;
@@ -175,25 +167,23 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
 
     int nDevices;
     int deviceNumber = 0;
-    HandleError(cudaGetDeviceCount(&nDevices));
+    HANDLE_ERROR(cudaGetDeviceCount(&nDevices));
     if (nDevices > 1) {
         deviceNumber = streamNum % nDevices;
-        HandleError(cudaSetDevice(deviceNumber));
+        HANDLE_ERROR(cudaSetDevice(deviceNumber));
     }
-    cudaStream_t stream;
-    HandleError(cudaStreamCreate(&stream));
 
     Point *p_d;
     Spring *s_d;
     SpringDelta *ps_d;
-    HandleError(cudaHostAlloc(&p_d, points.size() * sizeof(Point)));
-    HandleError(cudaMemcpyAsync(p_d, &points[0], points.size() * sizeof(Point), cudaHostAllocDefault, stream));
+    HANDLE_ERROR(cudaMalloc(&p_d, points.size() * sizeof(Point)));
+    HANDLE_ERROR(cudaMemcpy(p_d, &points[0], points.size() * sizeof(Point), cudaMemcpyHostToDevice));
 
-    HandleError(cudaHostAlloc(&s_d, springs.size() * sizeof(Spring)));
-    HandleError(cudaMemcpyAsync(s_d, &springs[0], springs.size() * sizeof(Spring), cudaHostAllocDefault, stream));
+    HANDLE_ERROR(cudaMalloc(&s_d, springs.size() * sizeof(Spring)));
+    HANDLE_ERROR(cudaMemcpy(s_d, &springs[0], springs.size() * sizeof(Spring), cudaMemcpyHostToDevice));
 
-    HandleError(cudaHostAlloc(&ps_d, pointSprings.size() * sizeof(SpringDelta)));
-    HandleError(cudaMemcpyAsync(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaHostAllocDefault, stream));
+    HANDLE_ERROR(cudaMalloc(&ps_d, pointSprings.size() * sizeof(SpringDelta)));
+    HANDLE_ERROR(cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaMemcpyHostToDevice));
 
     double t = 0;
     int numPoints = points.size();
@@ -219,13 +209,13 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
             const float c = presets[i].c; 
             pv[i] = a + b * sin(t * oscillationFrequency);
         }
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5], pv[6], pv[7]);
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
         t += dt;
     }
 
     //std::vector<Point> newPoints(points.size(), {0, 0, 0, 0, 0, 0, 0, 0, 0});
-    return {points, p_d, s_d, ps_d, start, deviceNumber, stream};
+    return {points, p_d, s_d, ps_d, start, deviceNumber};
  
     //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     //auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
@@ -236,13 +226,12 @@ void resolveSim(AsyncSimHandle &handle) {
     if (handle.points.size() == 0) {
         return;
     }
-    HandleError(cudaSetDevice(handle.deviceNumber));
-    HandleError(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
+    HANDLE_ERROR(cudaSetDevice(handle.device));
+    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyHostToHost));
     
-    HandleError(cudaFreeHost(handle.p_d));
-    HandleError(cudaFreeHost(handle.s_d));
-    HandleError(cudaFreeHost(handle.ps_d));
-    HandleError(cudaStreamDestroy(handle.stream));
+    HANDLE_ERROR(cudaFree(handle.p_d));
+    HANDLE_ERROR(cudaFree(handle.s_d));
+    HANDLE_ERROR(cudaFree(handle.ps_d));
 }
 
 int mains() {
@@ -252,7 +241,7 @@ int mains() {
 
     genPointsAndSprings(points, springs);
 
-    AsyncSimHandle handle = simulate(points, springs, presets, 5.0, 0.5);
+    AsyncSimHandle handle = simulate(points, springs, presets, 5.0, 0.5, 0);
     resolveSim(handle);
 
     for (int i = 0; i < 8; i++) {

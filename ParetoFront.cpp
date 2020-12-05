@@ -1,4 +1,5 @@
 #include <vector>
+#include <map>
 #include <algorithm>
 #include <random>
 #include <stdio.h>
@@ -18,7 +19,8 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
             buckets.push_back({});
         }
     }
-    if (encoding.fitness > this->maxFitness) {
+    if (encoding.fitness > this->maxFitness && encoding.id > 20) {
+        std::map<int, int> exteriorPoints = {};
         this->maxFitness = encoding.fitness;
         printf("New max fitness: %f, for ID: %ld\n", encoding.fitness, encoding.id);
         // We now log this to report - should this be here? Maybe not, but the async is annoying.
@@ -28,50 +30,62 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
         myfile.open("output/robo" + std::to_string(encoding.id) + ".txt");
         // Janky JSON bc meh it's simple
         myfile << "{\n";
-        myfile << "\"name\": \"robo" + std::to_string(encoding.id) + "\",\n";
+        myfile << "\"name\" : \"robo" + std::to_string(encoding.id) + "\",\n";
         myfile << "\"masses\" : [\n";
+        int i = 0;
+        bool first = true;
         for (auto it = inputs.points.begin(); it != inputs.points.end(); ++it) {
-            myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
-            if (it + 1 == inputs.points.end()) {
-                myfile << "\n";
-            } else {
-                myfile << ",\n";
+            if ((*it).numSprings == 26) { // If it has 26 it's on the interior so we ignore
+                continue;
             }
+            if (!first) {
+                myfile << ",";
+            }
+            first = false;
+            exteriorPoints[it - inputs.points.begin()] = i++;
+            myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
         }
         myfile << "],\n";
         myfile << "\"springs\" : [\n";
+        first = true;
         for (auto it = inputs.springs.begin(); it != inputs.springs.end(); ++it) {
-            myfile << "[ " + std::to_string((*it).p1) + ", " + std::to_string((*it).p2) + "]";
-            if (it + 1 == inputs.springs.end()) {
-                myfile << "\n";
-            } else {
-                myfile << ",\n";
+            if (exteriorPoints.find((*it).p1) == exteriorPoints.end() || exteriorPoints.find((*it).p2) == exteriorPoints.end()) {
+                continue;
             }
+            if (!first) {
+                myfile << ",";
+            }
+            first = false;
+            myfile << "[ " + std::to_string(exteriorPoints[(*it).p1]) + ", " + std::to_string(exteriorPoints[(*it).p2]) + "]";
         }
         myfile << "],\n";
         myfile << "\"simulation\" : [\n";
         double t = 0;
         double dt = 1.0 / 24.0; // 24fps
-        auto points = inputs.points;
-        while (t < 10) {
-            AsyncSimHandle handle = simulate(points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval);
-            resolveSim(handle);
-            points = handle.points;
+        AsyncSimHandle handle = {inputs.points, NULL, NULL, NULL, 0, 0};
+        double simDuration = 30.0;
+        while (t < simDuration) {
             t += dt;
             myfile << "[\n";
+            first = true;
             for (auto it = handle.points.begin(); it != handle.points.end(); ++it) {
-                myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
-                if (it + 1 == handle.points.end()) {
-                    myfile << "\n";
-                } else {
-                    myfile << ",\n";
+                int i = it - handle.points.begin();
+                if (exteriorPoints.find(i) == exteriorPoints.end()) {
+                    continue;
                 }
+                if (!first) {
+                    myfile << ",";
+                }
+                first = false;
+                myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
             }
-            if (t >= 10) {
+            if (t >= simDuration) {
                 myfile << "]\n";
             } else {
                 myfile << "],\n";
             }
+            handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, 0);
+            resolveSim(handle);
         }
         myfile << "]\n";
         myfile << "}";
