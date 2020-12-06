@@ -2,6 +2,8 @@
 #include <vector>
 #include <map>
 #include <time.h>
+#include <thread>
+#include <future>
 #include "OozebotEncoding.h"
 #include "ParetoSelector.h"
 //#include <chrono>
@@ -10,6 +12,12 @@
 
 // TODO command line args
 // TODO air/water resistence
+
+std::pair<OozebotEncoding, AsyncSimHandle> gen(int i) {
+    OozebotEncoding encoding = OozebotEncoding::randomEncoding();
+    AsyncSimHandle handle = OozebotEncoding::evaluate(encoding, i);
+    return {encoding, handle};
+}
 
 int main() {
     // TODO objectives - fitness, age (in log tenure groupings maybe?), weight?
@@ -27,24 +35,32 @@ int main() {
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    OozebotEncoding previousEncoding;
-    AsyncSimHandle previousHandle;
+    const int asyncThreads = 35;
 
-    for (int i = 0; i <= minNumSolutions; i++) {
-        OozebotEncoding encoding = previousEncoding;
-        AsyncSimHandle handle = previousHandle;
-        if (i != minNumSolutions) {
-            previousEncoding = OozebotEncoding::randomEncoding();
-            previousHandle = OozebotEncoding::evaluate(previousEncoding, i);
-        }
-        if (i > 0) {
-            printf("Evaluating %d\n", i - 1);
-            auto res = OozebotEncoding::wait(handle);
-            encoding.fitness = res.first;
-            printf("Fitness was %f\n", encoding.fitness);
-            encoding.numTouchesRatio = res.second;
-            generation.globalParetoFront.evaluateEncoding(encoding);
-            generation.insertOozebot(encoding);
+    std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
+    for (int i = 0; i < asyncThreads; i++) {
+        threads[i] = std::async(&gen, i + 1);
+    }
+    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen(0);
+    OozebotEncoding encoding = pair.first;
+    AsyncSimHandle handle = pair.second;
+    
+    int j = 0;
+    for (int i = 0; i < minNumSolutions; i++) {
+        auto res = OozebotEncoding::wait(handle);
+        encoding.fitness = res.first;
+        encoding.numTouchesRatio = res.second;
+        generation.globalParetoFront.evaluateEncoding(encoding);
+        generation.insertOozebot(encoding);
+
+        if (i < minNumSolutions - 1) {
+            pair = threads[j].get();
+            encoding = pair.first;
+            handle = pair.second;
+            if (i < minNumSolutions - asyncThreads) {
+                threads[j] = std::async(&gen, i + asyncThreads);
+            }
+            j = (j + 1) % asyncThreads;
         }
     }
 

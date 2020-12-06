@@ -7,6 +7,8 @@
 #include <map>
 #include <atomic>
 #include <random>
+#include <time.h>
+#include <thread>
 
 #include "oozebotEncoding.h"
 
@@ -22,12 +24,20 @@ bool springSortFunction(OozebotExpression a, OozebotExpression b) {
     return (a.b > b.b);
 }
 
-int randomInRange(const int min, const int max) {
-    return rand() % (max + 1);
+#if defined (_MSC_VER)  // Visual studio
+    #define thread_local __declspec( thread )
+#elif defined (__GCC__) // GCC
+    #define thread_local __thread
+#endif
+
+int randomInRange(const int & min, const int & max) {
+    static thread_local std::mt19937 generator = std::mt19937(clock() + std::hash<std::thread::id>()(std::this_thread::get_id()));
+    std::uniform_int_distribution<int> distribution(min, max);
+    return distribution(generator);
 }
 
 double randFloat() {
-    return (double) rand() / RAND_MAX;
+    return (double) randomInRange(0, 10000000) / 10000000;
 }
 
 OozebotEncoding OozebotEncoding::randomEncoding() {

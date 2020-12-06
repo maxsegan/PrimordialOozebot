@@ -4,6 +4,8 @@
 #include <vector>
 #include <algorithm>
 #include <stdio.h>
+#include <future>
+#include <thread>
 
 // M: # of objectives/dimensions in the pareto front
 // N: Size of generation
@@ -36,6 +38,15 @@ void ParetoSelector::removeAllOozebots() {
     this->idToIndex.clear();
 }
 
+std::pair<OozebotEncoding, AsyncSimHandle> gen(OozebotEncoding mom, OozebotEncoding dad, int i, bool shouldMutate) {
+    OozebotEncoding child = OozebotEncoding::mate(mom, dad);
+    if (shouldMutate) {
+        child = mutate(child);
+    }
+    AsyncSimHandle handle = OozebotEncoding::evaluate(child, i);
+    return {child, handle};
+}
+
 // Crowding is maintained by dividing the entire
 // search space deterministically in subspaces, where is the
 // depth parameter and is the number of decision variables, and
@@ -51,33 +62,47 @@ int ParetoSelector::selectAndMate() {
         this->generation[4].encoding
     };
 
-    OozebotEncoding previousEncoding;
-    AsyncSimHandle previousHandle;
+    const int asyncThreads = 35;
 
-    for (int i = 0; i <= this->generationSize - 5; i++) {
-        OozebotEncoding encoding = previousEncoding;
-        AsyncSimHandle handle = previousHandle;
-        if (i != this->generationSize - 5) {
-            int k = this->selectionIndex();
-            int j = this->selectionIndex();
-            while (j == k) {
-                j = this->selectionIndex();
-            }
-            previousEncoding = OozebotEncoding::mate(this->generation[k].encoding, this->generation[j].encoding);
-            double r = (double) rand() / RAND_MAX;
-            if (r < this->mutationProbability) {
-                previousEncoding = mutate(previousEncoding);
-            }
-            previousHandle = OozebotEncoding::evaluate(previousEncoding, i);
+    std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
+    for (int i = 0; i < asyncThreads; i++) {
+        int k = this->selectionIndex();
+        int l = this->selectionIndex();
+        while (k == l) {
+            l = this->selectionIndex();
         }
-        if (i > 0) {
-            printf("Evaluating %d\n", i - 1);
-            auto res = OozebotEncoding::wait(handle);
-            encoding.fitness = res.first;
-            printf("Fitness was %f\n", encoding.fitness);
-            encoding.numTouchesRatio = res.second;
-            this->globalParetoFront.evaluateEncoding(encoding);
-            newGeneration.push_back(encoding);
+        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, i + 1, ((double) rand() / RAND_MAX) < this->mutationProbability);
+    }
+    int k = this->selectionIndex();
+    int l = this->selectionIndex();
+    while (k == l) {
+        l = this->selectionIndex();
+    }
+    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen(this->generation[k].encoding, this->generation[l].encoding, 0, ((double) rand() / RAND_MAX) < this->mutationProbability);
+    OozebotEncoding encoding = pair.first;
+    AsyncSimHandle handle = pair.second;
+    
+    int j = 0;
+    for (int i = 0; i < this->generationSize - 5; i++) {
+        auto res = OozebotEncoding::wait(handle);
+        encoding.fitness = res.first;
+        encoding.numTouchesRatio = res.second;
+        this->globalParetoFront.evaluateEncoding(encoding);
+        newGeneration.push_back(encoding);
+
+        if (i < this->generationSize - 6) {
+            pair = threads[j].get();
+            encoding = pair.first;
+            handle = pair.second;
+            if (i < this->generationSize - 5 - asyncThreads) {
+                k = this->selectionIndex();
+                l = this->selectionIndex();
+                while (k == l) {
+                    l = this->selectionIndex();
+                }
+                threads[j] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, i + asyncThreads, ((double) rand() / RAND_MAX) < this->mutationProbability);
+            }
+            j = (j + 1) % asyncThreads;
         }
     }
 
@@ -126,8 +151,6 @@ void ParetoSelector::sort() {
         }
     }
     this->generation = nextGeneration;
-    for (auto it = this->generation.begin(); it != this->generation.end(); ++it) {
-    }
 }
 
 int ParetoSelector::selectionIndex() {

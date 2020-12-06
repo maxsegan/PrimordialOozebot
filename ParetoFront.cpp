@@ -6,52 +6,20 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <future>
+#include <thread>
 
 #include "ParetoFront.h"
 #include "cudaSim.h"
 
-bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
-    this->allResults.push_back({encoding.numTouchesRatio, encoding.fitness});
-    int touchesBucket = round(encoding.numTouchesRatio / this->touchesBucketSize);
-    if (encoding.numTouchesRatio > this->maxTouches) {
-        this->maxTouches = encoding.numTouchesRatio;
-        while (touchesBucket >= buckets.size()) {
-            buckets.push_back({});
-        }
-    }
-    if (encoding.fitness > this->maxFitness) {
-        this->maxFitness = encoding.fitness;
-    }
-    
-    int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
-    while (fitnessBucket >= this->buckets[touchesBucket].size()) {
-        this->buckets[touchesBucket].push_back(0);
-    }
-    this->buckets[touchesBucket][fitnessBucket] += 1;
-    
-    if (lastResize < this->allResults.size() / 2) {
-        this->resize();
-    }
-    auto iter = this->encodingFront.begin();
-    while (iter != this->encodingFront.end()) {
-        auto frontEncoding = *iter;
-
-        if (dominates(frontEncoding, encoding)) {
-            return false; // this is dominated by an existing one - by definition it can't dominate any others
-        } else if (dominates(encoding, frontEncoding)) {
-            iter = this->encodingFront.erase(iter); // this dominates one - it will certainly be added but also may dominate others
-        } else {
-            ++iter;
-        }
-    }
-    this->encodingFront.push_back(encoding);
-
+void logEncoding(OozebotEncoding encoding) {
+    printf("New encoding on pareto front: %d with fitness: %f\n", encoding.id, encoding.fitness);
     std::map<int, int> exteriorPoints = {};
     // We now log this to report - should this be here? Maybe not, but the async is annoying.
     // Prolly wanted a callback
     SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
     std::ofstream myfile;
-    myfile.open("output/robo" + std::to_string(encoding.id) + ".txt");
+    myfile.open("output/robo" + std::to_string(encoding.id) + "-" + std::to_string(encoding.fitness) + ".txt");
     // Janky JSON bc meh it's simple
     myfile << "{\n";
     myfile << "\"name\" : \"robo" + std::to_string(encoding.id) + "\",\n";
@@ -108,12 +76,53 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
         } else {
             myfile << "],\n";
         }
-        handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, 0);
+        handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, encoding.id);
         resolveSim(handle);
     }
     myfile << "]\n";
     myfile << "}";
     myfile.close();
+}
+
+bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
+    this->allResults.push_back({encoding.numTouchesRatio, encoding.fitness});
+    int touchesBucket = round(encoding.numTouchesRatio / this->touchesBucketSize);
+
+    if (encoding.numTouchesRatio > this->maxTouches) {
+        this->maxTouches = encoding.numTouchesRatio;
+        while (touchesBucket >= buckets.size()) {
+            buckets.push_back({});
+        }
+    }
+    if (encoding.fitness > this->maxFitness) {
+        this->maxFitness = encoding.fitness;
+    }
+    
+    int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
+    while (fitnessBucket >= this->buckets[touchesBucket].size()) {
+        this->buckets[touchesBucket].push_back(0);
+    }
+    this->buckets[touchesBucket][fitnessBucket] += 1;
+    
+    if (lastResize < this->allResults.size() / 2) {
+        this->resize();
+    }
+    auto iter = this->encodingFront.begin();
+    while (iter != this->encodingFront.end()) {
+        auto frontEncoding = *iter;
+
+        if (dominates(frontEncoding, encoding)) {
+            return false; // this is dominated by an existing one - by definition it can't dominate any others
+        } else if (dominates(encoding, frontEncoding)) {
+            iter = this->encodingFront.erase(iter); // this dominates one - it will certainly be added but also may dominate others
+        } else {
+            ++iter;
+        }
+    }
+
+    this->encodingFront.push_back(encoding);
+
+    std::thread(logEncoding, encoding).detach();
 
     return true;
 }
@@ -143,5 +152,6 @@ void ParetoFront::resize() {
 
 double ParetoFront::noveltyDegreeForEncoding(OozebotEncoding encoding) {
     int touchesBucket = round(encoding.numTouchesRatio / this->touchesBucketSize);
-    return 1 / this->buckets[touchesBucket].size();  
+    int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
+    return (double) 1 / this->buckets[touchesBucket][fitnessBucket];  
 }
