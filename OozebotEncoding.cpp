@@ -190,7 +190,7 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     } else if (r < 8) {
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         double interval = encoding.globalTimeInterval + seed;
-        encoding.globalTimeInterval = b += std::min(std::max(interval, 1), 10);
+        encoding.globalTimeInterval = std::min(std::max(interval, 1.0), 10.0);
     } else if (r < 30) {
         int index = randomInRange(0, encoding.boxCommands.size() - 1);
         double seed = randFloat() - 0.5; // -0.5 to 0.5
