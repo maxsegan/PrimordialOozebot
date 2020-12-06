@@ -19,7 +19,7 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
             buckets.push_back({});
         }
     }
-    if (encoding.fitness > this->maxFitness && encoding.id > 20) {
+    if (encoding.fitness > this->maxFitness) {
         std::map<int, int> exteriorPoints = {};
         this->maxFitness = encoding.fitness;
         printf("New max fitness: %f, for ID: %ld\n", encoding.fitness, encoding.id);

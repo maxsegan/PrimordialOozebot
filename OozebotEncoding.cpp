@@ -27,7 +27,7 @@ int randomInRange(const int min, const int max) {
 }
 
 double randFloat() {
-    return (double) randomInRange(0, 99999) / 99999;
+    return (double) rand() / RAND_MAX;
 }
 
 OozebotEncoding OozebotEncoding::randomEncoding() {
@@ -187,30 +187,29 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
             int newRadius = encoding.bodyCommand.radius + (randomInRange(0, 1) ? 1 : -1);
             encoding.bodyCommand.radius = std::max(std::min(newRadius, 0), kMaxRadius);
         }
+    } else if (r < 8) {
+        double seed = randFloat() - 0.5; // -0.5 to 0.5
+        double interval = encoding.globalTimeInterval + seed;
+        encoding.globalTimeInterval = b += std::min(std::max(interval, 1), 10);
     } else if (r < 30) {
         int index = randomInRange(0, encoding.boxCommands.size() - 1);
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         r = randomInRange(0, 4);
         if (r == 0) {
-            double k = encoding.boxCommands[index].k;
-            k += std::min(std::max(seed * 100, 500.0), 10000.0);
-            encoding.boxCommands[index].k = k;
+            double k = encoding.boxCommands[index].k + seed;
+            encoding.boxCommands[index].k = std::min(std::max(k, 500.0), 10000.0);
         } else if (r == 1) {
-            double a = encoding.boxCommands[index].a;
-            a += std::min(std::max(seed * 0.1, 0.5), 1.5);
-            encoding.boxCommands[index].a = a;
+            double a = encoding.boxCommands[index].a + seed * 0.1;
+            encoding.boxCommands[index].a = std::min(std::max(a, 0.5), 1.5);
         } else if (r == 2) {
-            double b = encoding.boxCommands[index].b;
-            b += std::min(std::max(seed * 0.05, -0.8), 0.8);
-            encoding.boxCommands[index].b = b;
+            double b = encoding.boxCommands[index].b + seed * 0.05;
+            encoding.boxCommands[index].b = std::min(std::max(b, -0.8), 0.8);
         } else if (r == 3) {
-            double c = encoding.boxCommands[index].c;
-            c += std::min(std::max(seed * 0.1, 0.0), 2 * M_PI);
-            encoding.boxCommands[index].c = c;
+            double c = encoding.boxCommands[index].c + seed * 0.1;
+            encoding.boxCommands[index].c = std::min(std::max(c, 0.0), 2 * M_PI);
         } else {
-            double kg = encoding.boxCommands[index].c;
-            kg += std::min(std::max(seed * 0.1, 0.01), 1.0);
-            encoding.boxCommands[index].kg = kg;
+            double kg = encoding.boxCommands[index].kg + seed * 0.1;
+            encoding.boxCommands[index].kg = std::min(std::max(kg, 0.01), 1.0);
         }
         std::sort(encoding.boxCommands.begin(), encoding.boxCommands.end(), springSortFunction);
     } else if (r < 60) {
@@ -259,7 +258,7 @@ AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum
     auto springs = inputs.springs;
     auto springPresets = inputs.springPresets;
    
-    return simulate(points, springs, springPresets, 5.0, encoding.globalTimeInterval, streamNum);
+    return simulate(points, springs, springPresets, 10.0, encoding.globalTimeInterval, streamNum);
 }
 
 std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {

@@ -27,7 +27,7 @@ void genPointsAndSprings(
 
 #define staticFriction 0.5
 #define kineticFriction 0.3
-#define dt 0.0001
+#define dt 0.0002
 #define dampening 0.9995
 #define gravity -9.81
 #define kSpring 500.0
@@ -153,6 +153,7 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
 
 AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum) {
     if (points.size() == 0) {
+        printf("No points, early ejecting from sim\n");
         return { {}, NULL, NULL, NULL};
     }
     std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
