@@ -285,7 +285,7 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     }
     end = end / handle.points.size();
     double fitness = hasNan ? 0 : abs(end - handle.start);
-    return {fitness, fitness / handle.length };
+    return {fitness, fitness / std::max(6.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
 }
 
 void layBlockAtPosition(
