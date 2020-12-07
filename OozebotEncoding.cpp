@@ -139,7 +139,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
     OozebotEncoding encoding;
     double r = randFloat(); // 0 to 1
     encoding.globalTimeInterval = 1 + r * 9;
-    encoding.numTouchesRatio = 0;
+    encoding.lengthAdj = 0;
     encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed); ;
     encoding.boxCommands = boxCommands;
     encoding.layAndMoveCommands = layAndMoveSequences;
@@ -264,11 +264,8 @@ AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum
     if (inputs.points.size() == 0) {
         return { {}, NULL, NULL, NULL};
     }
-    auto points = inputs.points;
-    auto springs = inputs.springs;
-    auto springPresets = inputs.springPresets;
    
-    return simulate(points, springs, springPresets, 10.0, encoding.globalTimeInterval, streamNum);
+    return simulate(inputs.points, inputs.springs, inputs.springPresets, 10.0, encoding.globalTimeInterval, streamNum, inputs.length);
 }
 
 std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
@@ -279,20 +276,16 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     }
     double end = 0;
     bool hasNan = false;
-    int numTouches = 0;
     for (auto iter = handle.points.begin(); iter != handle.points.end(); ++iter) {
         end += (*iter).x;
         if (isnan((*iter).x) || isinf((*iter).x)) {
             printf("Solution has NaN or inf\n");
             hasNan = true;
         }
-        if ((*iter).timestampsContactGround > 0) {
-            numTouches += 1;
-        }
     }
     end = end / handle.points.size();
     double fitness = hasNan ? 0 : abs(end - handle.start);
-    return {fitness, (double)numTouches / handle.points.size()};
+    return {fitness, fitness / handle.length };
 }
 
 void layBlockAtPosition(
@@ -672,10 +665,23 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
         }
     }
 
+    float smallestX = 100;
+    float largestX = -100;
+    float smallestY = 100;
+    float largestY = -100;
+    float smallestZ = 100;
+    float largestZ = -100;
     // ground robot on lowest point
     for (auto it = points.begin(); it != points.end(); ++it) {
         (*it).y -= (double(minY) / 10.0);
+        smallestX = std::min((*it).x, smallestX);
+        largestX = std::max((*it).x, largestX);
+        smallestY = std::min((*it).y, smallestY);
+        largestY = std::max((*it).y, largestY);
+        smallestZ = std::min((*it).z, smallestZ);
+        largestZ = std::max((*it).z, largestZ);
     }
+    double length = (double) std::max(std::max(largestX - smallestX, largestY - smallestY), largestZ - smallestZ);
 
-    return { points, springs, presets };
+    return { points, springs, presets, length };
 }

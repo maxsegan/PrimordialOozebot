@@ -133,7 +133,6 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
             fz = fz - fz * fykinetic;
         }
         fy += kGround * y;
-        p.timestampsContactGround += 1;
     }
     float ax = fx / mass;
     float ay = fy / mass;
@@ -151,7 +150,7 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     points[i] = p;
 }
 
-AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum) {
+AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum, double length) {
     if (points.size() == 0) {
         printf("No points, early ejecting from sim\n");
         return { {}, NULL, NULL, NULL};
@@ -170,7 +169,6 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     int deviceNumber = 0;
     HANDLE_ERROR(cudaGetDeviceCount(&nDevices));
     if (nDevices > 1) {
-        printf("more than one device, set to %d\n", streamNum % nDevices);
         deviceNumber = streamNum % nDevices;
         HANDLE_ERROR(cudaSetDevice(deviceNumber));
     }
@@ -217,11 +215,43 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     }
 
     //std::vector<Point> newPoints(points.size(), {0, 0, 0, 0, 0, 0, 0, 0, 0});
-    return {points, p_d, s_d, ps_d, start, deviceNumber};
+    return {points, p_d, s_d, ps_d, numSprings, length, start, deviceNumber};
  
     //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     //auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     //std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
+}
+
+void resolveAndKeepAlive(AsyncSimHandle &handle) {
+    HANDLE_ERROR(cudaSetDevice(handle.device));
+    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyHostToHost));
+}
+
+void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency, int streamNum) {
+    int numPoints = handle.points.size();
+    int numPointThreads = 12;
+    int numPointBlocks = numPoints / numPointThreads + 1;
+  
+    int numSpringThreads = 25;
+    int numSpringBlocks = handle.numSprings / numSpringThreads + 1;
+
+    std::vector<float> pv;
+    for (auto it = presets.begin(); it != presets.end(); it++) {
+        pv.push_back(0.0);
+    }
+
+    HANDLE_ERROR(cudaSetDevice(handle.device));
+    while (t < n) {
+        for (int i = 0; i < pv.size(); i++) {
+            const float a = presets[i].a;
+            const float b = presets[i].b;
+            const float c = presets[i].c; 
+            pv[i] = a + b * sin(t * oscillationFrequency);
+        }
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(handle.p_d, handle.s_d, handle.ps_d, handle.numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
+        update_point<<<numPointBlocks, numPointThreads>>>(handle.p_d, handle.ps_d, numPoints);
+        t += dt;
+    }
 }
 
 void resolveSim(AsyncSimHandle &handle) {
@@ -243,7 +273,7 @@ int mains() {
 
     genPointsAndSprings(points, springs);
 
-    AsyncSimHandle handle = simulate(points, springs, presets, 5.0, 0.5, 0);
+    AsyncSimHandle handle = simulate(points, springs, presets, 5.0, 0.5, 0, 1.0);
     resolveSim(handle);
 
     for (int i = 0; i < 8; i++) {

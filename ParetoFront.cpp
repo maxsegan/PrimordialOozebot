@@ -13,7 +13,7 @@
 #include "cudaSim.h"
 
 void logEncoding(OozebotEncoding encoding) {
-    printf("New encoding on pareto front: %d with fitness: %f\n", encoding.id, encoding.fitness);
+    printf("New encoding on pareto front: %d with fitness: %f length adj: %f\n", encoding.id, encoding.fitness, encoding.lengthAdj);
     std::map<int, int> exteriorPoints = {};
     // We now log this to report - should this be here? Maybe not, but the async is annoying.
     // Prolly wanted a callback
@@ -54,10 +54,9 @@ void logEncoding(OozebotEncoding encoding) {
     myfile << "\"simulation\" : [\n";
     double t = 0;
     double dt = 1.0 / 24.0; // 24fps
-    AsyncSimHandle handle = {inputs.points, NULL, NULL, NULL, 0, 0};
+    AsyncSimHandle handle = {inputs.points, NULL, NULL, NULL, 0, 0, 0};
     double simDuration = 30.0;
     while (t < simDuration) {
-        t += dt;
         myfile << "[\n";
         first = true;
         for (auto it = handle.points.begin(); it != handle.points.end(); ++it) {
@@ -71,13 +70,19 @@ void logEncoding(OozebotEncoding encoding) {
             first = false;
             myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
         }
-        if (t >= simDuration) {
+        if (t + dt >= simDuration) {
             myfile << "]\n";
+            resolveSim(handle);
         } else {
             myfile << "],\n";
+            if (t == 0) {
+                handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, encoding.id, 1.0);
+            } else {
+                simulateAgain(handle, inputs.springPresets, t, t + dt, encoding.globalTimeInterval, encoding.id);
+            }
+            resolveAndKeepAlive(handle);
         }
-        handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, encoding.id);
-        resolveSim(handle);
+        t += dt;
     }
     myfile << "]\n";
     myfile << "}";
@@ -85,12 +90,12 @@ void logEncoding(OozebotEncoding encoding) {
 }
 
 bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
-    this->allResults.push_back({encoding.numTouchesRatio, encoding.fitness});
-    int touchesBucket = round(encoding.numTouchesRatio / this->touchesBucketSize);
+    this->allResults.push_back({encoding.lengthAdj, encoding.fitness});
+    int lengthAdjBucket = round(encoding.lengthAdj / this->lengthAdjBucketSize);
 
-    if (encoding.numTouchesRatio > this->maxTouches) {
-        this->maxTouches = encoding.numTouchesRatio;
-        while (touchesBucket >= buckets.size()) {
+    if (encoding.lengthAdj > this->maxLengthAdj) {
+        this->maxLengthAdj = encoding.lengthAdj;
+        while (lengthAdjBucket >= buckets.size()) {
             buckets.push_back({});
         }
     }
@@ -99,10 +104,10 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
     }
     
     int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
-    while (fitnessBucket >= this->buckets[touchesBucket].size()) {
-        this->buckets[touchesBucket].push_back(0);
+    while (fitnessBucket >= this->buckets[lengthAdjBucket].size()) {
+        this->buckets[lengthAdjBucket].push_back(0);
     }
-    this->buckets[touchesBucket][fitnessBucket] += 1;
+    this->buckets[lengthAdjBucket][fitnessBucket] += 1;
     
     if (lastResize < this->allResults.size() / 2) {
         this->resize();
@@ -122,7 +127,9 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
 
     this->encodingFront.push_back(encoding);
 
-    std::thread(logEncoding, encoding).detach();
+    if (encoding.id > 1000) { // Don't log the early ones that are just noise
+        std::thread(logEncoding, encoding).detach();
+    }
 
     return true;
 }
@@ -130,28 +137,28 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
 void ParetoFront::resize() {
     this->lastResize = allResults.size();
     this->buckets = {};
-    this->touchesBucketSize = this->maxTouches / 100;
+    this->lengthAdjBucketSize = this->maxLengthAdj / 100;
     this->fitnessBucketSize = this->maxFitness / 100;
 
     for (auto it = this->allResults.begin(); it != this->allResults.end(); it++) {
-        double touches = (*it).first;
+        double lengthAdj = (*it).first;
         double fitness = (*it).second;
 
-        int touchesIndex = round(touches / this->touchesBucketSize);
+        int lengthAdjIndex = round(lengthAdj / this->lengthAdjBucketSize);
         int fitnessIndex = round(fitness / this->fitnessBucketSize);
 
-        while (touchesIndex >= this->buckets.size()) {
+        while (lengthAdjIndex >= this->buckets.size()) {
             this->buckets.push_back({});
         }
-        while (fitnessIndex >= this->buckets[touchesIndex].size()) {
-            this->buckets[touchesIndex].push_back(0);
+        while (fitnessIndex >= this->buckets[lengthAdjIndex].size()) {
+            this->buckets[lengthAdjIndex].push_back(0);
         }
-        this->buckets[touchesIndex][fitnessIndex] = fitness;
+        this->buckets[lengthAdjIndex][fitnessIndex] = fitness;
     }
 }
 
 double ParetoFront::noveltyDegreeForEncoding(OozebotEncoding encoding) {
-    int touchesBucket = round(encoding.numTouchesRatio / this->touchesBucketSize);
+    int lengthAdjBucket = round(encoding.lengthAdj / this->lengthAdjBucketSize);
     int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
-    return (double) 1 / this->buckets[touchesBucket][fitnessBucket];  
+    return (double) 1 / this->buckets[lengthAdjBucket][fitnessBucket];  
 }

@@ -14,7 +14,6 @@ struct Point {
   float mass; // kg
   int numSprings; // Int - hack for CUDA ease - must be filled in externally, though
   int springDeltaIndex; // Filled in internally, ignore
-  float timestampsContactGround = 0; // tracked internally
 };
 
 struct Spring {
@@ -44,12 +43,18 @@ struct AsyncSimHandle {
   Point *p_d;
   Spring *s_d;
   SpringDelta *ps_d;
+  int numSprings;
+  double length;
   double start;
   int device;
 };
 
 // Updates the x, y, and z values of the points after running a simulation for n seconds
-AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum);
+AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum, double length);
+
+void resolveAndKeepAlive(AsyncSimHandle &handle);
+
+void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency, int streamNum);
 
 void resolveSim(AsyncSimHandle &handle);
 

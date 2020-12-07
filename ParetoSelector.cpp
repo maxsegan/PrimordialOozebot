@@ -86,7 +86,7 @@ int ParetoSelector::selectAndMate() {
     for (int i = 0; i < this->generationSize - 5; i++) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
-        encoding.numTouchesRatio = res.second;
+        encoding.lengthAdj = res.second;
         this->globalParetoFront.evaluateEncoding(encoding);
         newGeneration.push_back(encoding);
 

@@ -49,7 +49,7 @@ int main() {
     for (int i = 0; i < minNumSolutions; i++) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
-        encoding.numTouchesRatio = res.second;
+        encoding.lengthAdj = res.second;
         generation.globalParetoFront.evaluateEncoding(encoding);
         generation.insertOozebot(encoding);
 

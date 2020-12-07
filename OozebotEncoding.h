@@ -53,12 +53,13 @@ struct SimInputs {
     std::vector<Point> points;
     std::vector<Spring> springs;
     std::vector<FlexPreset> springPresets;
+    double length;
 };
 
 class OozebotEncoding {
 public:
     double fitness; // Depends on objective - might be net displacement
-    double numTouchesRatio; // how many points ever touched the ground in the sim?
+    double lengthAdj; // Fitness normalized for maximum dimension cross section
     double globalTimeInterval; // 0.1 - 1
     unsigned long int id;
 
@@ -83,7 +84,7 @@ OozebotEncoding mutate(OozebotEncoding encoding);
 
 // Returns true if the first encoding dominates the second, false otherwise
 inline bool dominates(OozebotEncoding firstEncoding, OozebotEncoding secondEncoding) {
-    return firstEncoding.fitness >= secondEncoding.fitness && firstEncoding.numTouchesRatio <= secondEncoding.numTouchesRatio;
+    return firstEncoding.fitness >= secondEncoding.fitness && firstEncoding.lengthAdj <= secondEncoding.lengthAdj;
 }
 
 #endif

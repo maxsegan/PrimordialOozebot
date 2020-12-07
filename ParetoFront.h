@@ -17,9 +17,9 @@ private:
     std::vector<OozebotEncoding> encodingFront;
     std::vector<std::pair<double, double>> allResults;
     std::vector<std::vector<int>> buckets;
-    double touchesBucketSize = 0.1;
+    double lengthAdjBucketSize = 0.1;
     double fitnessBucketSize = 0.1;
-    double maxTouches = 0;
+    double maxLengthAdj = 0;
     double maxFitness = 0;
     int lastResize = 10;
 
