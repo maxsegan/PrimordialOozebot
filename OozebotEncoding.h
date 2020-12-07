@@ -84,7 +84,7 @@ OozebotEncoding mutate(OozebotEncoding encoding);
 
 // Returns true if the first encoding dominates the second, false otherwise
 inline bool dominates(OozebotEncoding firstEncoding, OozebotEncoding secondEncoding) {
-    return firstEncoding.fitness >= secondEncoding.fitness && firstEncoding.lengthAdj <= secondEncoding.lengthAdj;
+    return firstEncoding.fitness >= secondEncoding.fitness && firstEncoding.lengthAdj >= secondEncoding.lengthAdj;
 }
 
 #endif
