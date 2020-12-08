@@ -177,7 +177,7 @@ OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding p
     int jj = std::max(boxSplitI, boxSplitJ);
     int i = 0;
     while (i < kNumBoxes) {
-        if (i < ii || i > boxSplitJ) {
+        if (i < ii || i > jj) {
             child.boxCommands.push_back(parent1.boxCommands[i]);
         } else {
             child.boxCommands.push_back(parent2.boxCommands[i]);
@@ -196,7 +196,7 @@ OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding p
     jj = std::max(boxSplitI, boxSplitJ);
     i = 0;
     while (i < kMaxLayAndMoveSequences) {
-        if (i < ii || i > boxSplitJ) {
+        if (i < ii || i > jj) {
             child.layAndMoveCommands.push_back(parent1.layAndMoveCommands[i]);
         } else {
             child.layAndMoveCommands.push_back(parent2.layAndMoveCommands[i]);
@@ -215,7 +215,7 @@ OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding p
     jj = std::max(boxSplitI, boxSplitJ);
     i = 0;
     while (i < kMaxGrowthCommands) {
-        if (i < ii || i > boxSplitJ) {
+        if (i < ii || i > jj) {
             child.growthCommands.push_back(parent1.growthCommands[i]);
         } else {
             child.growthCommands.push_back(parent2.growthCommands[i]);
@@ -329,8 +329,8 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     }
     endX = endX / handle.points.size();
     endZ = endZ / handle.points.size();
-    const int deltaX = endX - handle.startX;
-    const int deltaZ = endZ - handle.startZ;
+    const double deltaX = endX - handle.startX;
+    const double deltaZ = endZ - handle.startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
     return {fitness, fitness / std::max(1.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
 }

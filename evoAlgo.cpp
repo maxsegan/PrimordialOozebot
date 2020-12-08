@@ -30,13 +30,13 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 100000; // TODO take as a param
-    const int minNumSolutions = 300; // TODO take as a param
+    int maxEvaluations = 100; // TODO take as a param
+    const int minNumSolutions = 10; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    const int asyncThreads = 35;
+    const int asyncThreads = 5;
 
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {
@@ -47,7 +47,7 @@ int main() {
     AsyncSimHandle handle = pair.second;
     
     int j = 0;
-    const int randomSeedNum = 1000;
+    const int randomSeedNum = 10;
     for (int i = 0; i < randomSeedNum; i++) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
@@ -73,6 +73,37 @@ int main() {
         numEvaluations += generation.selectAndMate();
         printf("Finished run #%d\n", numEvaluations);
     }
+
+    // Now we hillclimb the best solution
+    generation.sort();
+    OozebotEncoding encoding1 = generation.generation[0].encoding;
+    OozebotEncoding encoding2 = generation.generation[0].encoding;
+    int iterSinceImprovement = 0;
+    while (iterSinceImprovement < 5) {
+        OozebotEncoding newEncoding1 = mutate(encoding1);
+        OozebotEncoding newEncoding2 = mutate(encoding2);
+        AsyncSimHandle handle1 = OozebotEncoding::evaluate(newEncoding1, 0);
+        AsyncSimHandle handle2 = OozebotEncoding::evaluate(newEncoding2, 1);
+        auto res1 = OozebotEncoding::wait(handle1);
+        auto res2 = OozebotEncoding::wait(handle2);
+        newEncoding1.fitness = res1.first;
+        newEncoding1.lengthAdj = res1.second;
+        newEncoding2.fitness = res2.first;
+        newEncoding2.lengthAdj = res2.second;
+        iterSinceImprovement++;
+        if (newEncoding1.fitness > encoding1.fitness) {
+            encoding1 = newEncoding1;
+            iterSinceImprovement = 0;
+            printf("New high fitness of %f\n", encoding1.fitness);
+        }
+        if (newEncoding2.fitness > encoding2.fitness) {
+            encoding2 = newEncoding2;
+            iterSinceImprovement = 0;
+            printf("New high fitness of %f\n", encoding2.fitness);
+        }
+    }
+    generation.globalParetoFront.evaluateEncoding(encoding1);
+    generation.globalParetoFront.evaluateEncoding(encoding2);
     // TODO hill climb at the end of each generation
     return 0;
 }
