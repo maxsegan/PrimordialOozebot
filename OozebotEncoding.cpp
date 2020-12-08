@@ -281,7 +281,7 @@ AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum
         return { {}, NULL, NULL, NULL};
     }
    
-    return simulate(inputs.points, inputs.springs, inputs.springPresets, 10.0, encoding.globalTimeInterval, streamNum, inputs.length);
+    return simulate(inputs.points, inputs.springs, inputs.springPresets, 5.0, encoding.globalTimeInterval, streamNum, inputs.length);
 }
 
 std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
@@ -291,17 +291,16 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
         return {0, 0};
     }
     double end = 0;
-    bool hasNan = false;
     for (auto iter = handle.points.begin(); iter != handle.points.end(); ++iter) {
         end += (*iter).x;
         if (isnan((*iter).x) || isinf((*iter).x)) {
             printf("Solution has NaN or inf\n");
-            hasNan = true;
+            return {0, 0};
         }
     }
     end = end / handle.points.size();
-    double fitness = hasNan ? 0 : abs(end - handle.start);
-    return {fitness, fitness / std::max(6.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
+    double fitness = abs(end - handle.start);
+    return {fitness, fitness / std::max(1.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
 }
 
 void layBlockAtPosition(

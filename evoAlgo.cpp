@@ -9,7 +9,7 @@
 #include "OozebotEncoding.h"
 #include "ParetoSelector.h"
 
-// Usage: nvcc -O2 evoAlgo.cu -o evoAlgo -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64" cudaSim.cu OozebotEncoding.cpp ParetoSelector.cpp ParetoFront.cpp
+// Usage: nvcc -O2 evoAlgo.cpp -o evoAlgo -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64" cudaSim.cu OozebotEncoding.cpp ParetoSelector.cpp ParetoFront.cpp
 
 // TODO command line args
 // TODO air/water resistence
@@ -36,7 +36,7 @@ int main() {
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    const int asyncThreads = 50;
+    const int asyncThreads = 35;
 
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {
@@ -47,29 +47,30 @@ int main() {
     AsyncSimHandle handle = pair.second;
     
     int j = 0;
-    for (int i = 0; i < minNumSolutions; i++) {
+    const int randomSeedNum = 1000;
+    for (int i = 0; i < randomSeedNum; i++) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
         encoding.lengthAdj = res.second;
         generation.globalParetoFront.evaluateEncoding(encoding);
         generation.insertOozebot(encoding);
 
-        if (i < minNumSolutions - 1) {
+        if (i < randomSeedNum - 1) {
             pair = threads[j].get();
             encoding = pair.first;
             handle = pair.second;
-            if (i < minNumSolutions - asyncThreads) {
+            if (i < randomSeedNum - asyncThreads) {
                 threads[j] = std::async(&gen, i + asyncThreads);
             }
             j = (j + 1) % asyncThreads;
         }
     }
 
-    int numEvaluations = minNumSolutions;
+    int numEvaluations = randomSeedNum;
     // In this stage do baseball leagues too, maybe 100k iterations, then create another one (recursive) as it's competitor
     while (numEvaluations < maxEvaluations) {
         numEvaluations += generation.selectAndMate();
-        //printf("Finished run #%d\n", numEvaluations);
+        printf("Finished run #%d\n", numEvaluations);
     }
     // TODO hill climb at the end of each generation
     return 0;
