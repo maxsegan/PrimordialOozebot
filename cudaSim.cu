@@ -24,7 +24,7 @@ static void HandleError( cudaError_t err,
 
 #define staticFriction 0.5
 #define kineticFriction 0.3
-#define dt 0.0004
+#define dt 0.0002
 #define dampening 0.9995
 #define gravity -9.81
 #define kSpring 500.0
