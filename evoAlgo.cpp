@@ -30,8 +30,8 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 100; // TODO take as a param
-    const int minNumSolutions = 10; // TODO take as a param
+    int maxEvaluations = 50000; // TODO take as a param
+    const int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
     ParetoSelector generation(minNumSolutions, mutationRate);
@@ -47,7 +47,7 @@ int main() {
     AsyncSimHandle handle = pair.second;
     
     int j = 0;
-    const int randomSeedNum = 10;
+    const int randomSeedNum = 2000;
     for (int i = 0; i < randomSeedNum; i++) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
@@ -79,7 +79,8 @@ int main() {
     OozebotEncoding encoding1 = generation.generation[0].encoding;
     OozebotEncoding encoding2 = generation.generation[0].encoding;
     int iterSinceImprovement = 0;
-    while (iterSinceImprovement < 5) {
+    unsigned long int nextID = numEvaluations;
+    while (iterSinceImprovement < 500) {
         OozebotEncoding newEncoding1 = mutate(encoding1);
         OozebotEncoding newEncoding2 = mutate(encoding2);
         AsyncSimHandle handle1 = OozebotEncoding::evaluate(newEncoding1, 0);
@@ -88,8 +89,10 @@ int main() {
         auto res2 = OozebotEncoding::wait(handle2);
         newEncoding1.fitness = res1.first;
         newEncoding1.lengthAdj = res1.second;
+        newEncoding1.id = ++nextID;
         newEncoding2.fitness = res2.first;
         newEncoding2.lengthAdj = res2.second;
+        newEncoding2.id = ++nextID;
         iterSinceImprovement++;
         if (newEncoding1.fitness > encoding1.fitness) {
             encoding1 = newEncoding1;
@@ -104,6 +107,5 @@ int main() {
     }
     generation.globalParetoFront.evaluateEncoding(encoding1);
     generation.globalParetoFront.evaluateEncoding(encoding2);
-    // TODO hill climb at the end of each generation
     return 0;
 }
