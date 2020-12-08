@@ -152,13 +152,16 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     }
     std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
     int springDeltaIndex  = 0;
-    double start = 0;
+    double startX = 0;
+    double startZ = 0;
     for (int i = 0; i < points.size(); i++) {
         points[i].springDeltaIndex = springDeltaIndex;
         springDeltaIndex += points[i].numSprings;
-        start += points[i].x;
+        startX += points[i].x;
+        startZ += points[i].z;
     }
-    start = start / points.size();
+    startX = startX / points.size();
+    startZ = startZ / points.size();
 
     int nDevices;
     int deviceNumber = 0;
@@ -206,7 +209,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         t += dt;
     }
 
-    return {points, p_d, s_d, ps_d, numSprings, length, start, deviceNumber};
+    return {points, p_d, s_d, ps_d, numSprings, length, startX, startZ, deviceNumber};
 }
 
 void resolveAndKeepAlive(AsyncSimHandle &handle) {

@@ -68,6 +68,7 @@ int main() {
 
     int numEvaluations = randomSeedNum;
     // In this stage do baseball leagues too, maybe 100k iterations, then create another one (recursive) as it's competitor
+    // TODO baseball leagues
     while (numEvaluations < maxEvaluations) {
         numEvaluations += generation.selectAndMate();
         printf("Finished run #%d\n", numEvaluations);

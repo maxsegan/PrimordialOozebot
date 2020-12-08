@@ -168,32 +168,59 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding parent2) {
     OozebotEncoding child;
     child.boxCommands = {};
-    int boxSplit = randomInRange(0, kNumBoxes - 1);
-    for (int i = 0; i < boxSplit; i++) {
-        child.boxCommands.push_back(parent1.boxCommands[i]);
+    int boxSplitI = randomInRange(0, kNumBoxes - 1);
+    int boxSplitJ = randomInRange(0, kNumBoxes - 1);
+    if (boxSplitJ == boxSplitI) {
+        boxSplitJ = randomInRange(0, kNumBoxes - 1);
     }
-    for (int i = boxSplit; i < kNumBoxes; i++) {
-        child.boxCommands.push_back(parent2.boxCommands[i]);
+    int ii = std::min(boxSplitI, boxSplitJ);
+    int jj = std::max(boxSplitI, boxSplitJ);
+    int i = 0;
+    while (i < kNumBoxes) {
+        if (i < ii || i > boxSplitJ) {
+            child.boxCommands.push_back(parent1.boxCommands[i]);
+        } else {
+            child.boxCommands.push_back(parent2.boxCommands[i]);
+        }
+        i++;
     }
     std::sort(child.boxCommands.begin(), child.boxCommands.end(), springSortFunction);
 
     child.layAndMoveCommands = {};
-    int laySplit = randomInRange(0, kMaxLayAndMoveSequences - 1);
-    for (int i = 0; i < laySplit; i++) {
-        child.layAndMoveCommands.push_back(parent1.layAndMoveCommands[i]);
+    boxSplitI = randomInRange(0, kMaxLayAndMoveSequences - 1);
+    boxSplitJ = randomInRange(0, kMaxLayAndMoveSequences - 1);
+    if (boxSplitJ == boxSplitI) {
+        boxSplitJ = randomInRange(0, kMaxLayAndMoveSequences - 1);
     }
-    for (int i = laySplit; i < kMaxLayAndMoveSequences; i++) {
-        child.layAndMoveCommands.push_back(parent2.layAndMoveCommands[i]);
+    ii = std::min(boxSplitI, boxSplitJ);
+    jj = std::max(boxSplitI, boxSplitJ);
+    i = 0;
+    while (i < kMaxLayAndMoveSequences) {
+        if (i < ii || i > boxSplitJ) {
+            child.layAndMoveCommands.push_back(parent1.layAndMoveCommands[i]);
+        } else {
+            child.layAndMoveCommands.push_back(parent2.layAndMoveCommands[i]);
+        }
+        i++;
     }
     child.bodyCommand = parent1.bodyCommand;
 
     child.growthCommands = {};
-    int growthSplit = randomInRange(0, kMaxGrowthCommands - 1);
-    for (int i = 0; i < growthSplit; i++) {
-        child.growthCommands.push_back(parent1.growthCommands[i]);
+    boxSplitI = randomInRange(0, kMaxGrowthCommands - 1);
+    boxSplitJ = randomInRange(0, kMaxGrowthCommands - 1);
+    if (boxSplitJ == boxSplitI) {
+        boxSplitJ = randomInRange(0, kMaxGrowthCommands - 1);
     }
-    for (int i = growthSplit; i < kMaxGrowthCommands; i++) {
-        child.growthCommands.push_back(parent2.growthCommands[i]);
+    ii = std::min(boxSplitI, boxSplitJ);
+    jj = std::max(boxSplitI, boxSplitJ);
+    i = 0;
+    while (i < kMaxGrowthCommands) {
+        if (i < ii || i > boxSplitJ) {
+            child.growthCommands.push_back(parent1.growthCommands[i]);
+        } else {
+            child.growthCommands.push_back(parent2.growthCommands[i]);
+        }
+        i++;
     }
     child.id = GlobalId++;
     child.globalTimeInterval = parent1.globalTimeInterval;
@@ -290,16 +317,21 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
         printf("failure\n");
         return {0, 0};
     }
-    double end = 0;
+    double endX = 0;
+    double endZ = 0;
     for (auto iter = handle.points.begin(); iter != handle.points.end(); ++iter) {
-        end += (*iter).x;
-        if (isnan((*iter).x) || isinf((*iter).x)) {
+        endX += (*iter).x;
+        endX += (*iter).z;
+        if (isnan((*iter).x) || isinf((*iter).x) || isnan((*iter).z) || isinf((*iter).z)) {
             printf("Solution has NaN or inf\n");
             return {0, 0};
         }
     }
-    end = end / handle.points.size();
-    double fitness = abs(end - handle.start);
+    endX = endX / handle.points.size();
+    endZ = endZ / handle.points.size();
+    const deltaX = endX - handle.startX;
+    const deltaZ = endZ - handle.startZ;
+    double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
     return {fitness, fitness / std::max(1.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
 }
 

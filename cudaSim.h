@@ -44,7 +44,8 @@ struct AsyncSimHandle {
   SpringDelta *ps_d;
   int numSprings;
   double length;
-  double start;
+  double startX;
+  double startZ;
   int device;
 };
 
