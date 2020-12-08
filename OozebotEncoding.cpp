@@ -329,8 +329,8 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     }
     endX = endX / handle.points.size();
     endZ = endZ / handle.points.size();
-    const deltaX = endX - handle.startX;
-    const deltaZ = endZ - handle.startZ;
+    const int deltaX = endX - handle.startX;
+    const int deltaZ = endZ - handle.startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
     return {fitness, fitness / std::max(1.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
 }
