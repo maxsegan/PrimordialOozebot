@@ -156,8 +156,8 @@ void ParetoSelector::sort() {
 int ParetoSelector::selectionIndex() {
     double r = (double) rand() / RAND_MAX;
 
-    double accumulation = 0;
-    int i = -1;
+    double accumulation = this->indexToProbability[0];
+    int i = 0;
     while (accumulation < r) {
         i += 1;
         accumulation += this->indexToProbability[i];
