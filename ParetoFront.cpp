@@ -13,7 +13,7 @@
 #include "cudaSim.h"
 
 void logEncoding(OozebotEncoding encoding) {
-    printf("New encoding on pareto front: %d with fitness: %f length adj: %f\n", encoding.id, encoding.fitness, encoding.lengthAdj);
+    //printf("New encoding on pareto front: %d with fitness: %f length adj: %f\n", encoding.id, encoding.fitness, encoding.lengthAdj);
     std::map<int, int> exteriorPoints = {};
     // We now log this to report - should this be here? Maybe not, but the async is annoying.
     // Prolly wanted a callback
@@ -98,9 +98,11 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
         while (lengthAdjBucket >= buckets.size()) {
             buckets.push_back({});
         }
+        printf("%d: %f, lengthAdj\n", encoding.id, encoding.lengthAdj);
     }
     if (encoding.fitness > this->maxFitness) {
         this->maxFitness = encoding.fitness;
+        printf("%d: %f, fitness\n", encoding.id, encoding.fitness);
     }
     
     int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
@@ -130,7 +132,7 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
     if (encoding.id > 1000) { // Don't log the early ones that are just noise
         std::thread(logEncoding, encoding).detach();
     } else {
-        printf("New pareto front for %d with fitness %f\n", encoding.id, encoding.fitness);
+        //printf("New pareto front for %d with fitness %f\n", encoding.id, encoding.fitness);
     }
 
     return true;

@@ -21,10 +21,6 @@ static void HandleError( cudaError_t err,
 }
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 
-void genPointsAndSprings(
-	std::vector<Point> &points,
-	std::vector<Spring> &springs);
-
 #define staticFriction 0.5
 #define kineticFriction 0.3
 #define dt 0.0002
@@ -32,8 +28,6 @@ void genPointsAndSprings(
 #define gravity -9.81
 #define kSpring 500.0
 #define kGround -100000.0
-const float kDropHeight = 0.2;
-const int pointsPerSide = 2;
 
 __global__ void update_spring(
     Point *points,
@@ -199,9 +193,6 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         pv.push_back(0.0);
     }
 
-    //printf("num springs evaluated: %lld, %d\n", long long int(limit / dt * numSprings), numSprings);
-    //std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
     while (t < n) {
         for (int i = 0; i < pv.size(); i++) {
             const float a = presets[i].a;
@@ -214,12 +205,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         t += dt;
     }
 
-    //std::vector<Point> newPoints(points.size(), {0, 0, 0, 0, 0, 0, 0, 0, 0});
     return {points, p_d, s_d, ps_d, numSprings, length, start, deviceNumber};
- 
-    //std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    //auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    //std::cout << "Time difference = " << ms.count() / 1000.0 << "[s]" << std::endl;
 }
 
 void resolveAndKeepAlive(AsyncSimHandle &handle) {
@@ -264,84 +250,4 @@ void resolveSim(AsyncSimHandle &handle) {
     HANDLE_ERROR(cudaFree(handle.p_d));
     HANDLE_ERROR(cudaFree(handle.s_d));
     HANDLE_ERROR(cudaFree(handle.ps_d));
-}
-
-int mains() {
-    std::vector<Point> points;
-    std::vector<Spring> springs;
-    std::vector<FlexPreset> presets = { {1, 0.0, 0.0} };
-
-    genPointsAndSprings(points, springs);
-
-    AsyncSimHandle handle = simulate(points, springs, presets, 5.0, 0.5, 0, 1.0);
-    resolveSim(handle);
-
-    for (int i = 0; i < 8; i++) {
-        printf("x: %f, y: %f, z: %f, %d\n", handle.points[i].x, handle.points[i].y, handle.points[i].z, i);
-    }
-
-    return 0;
-}
-
-void genPointsAndSprings(
-	std::vector<Point> &points,
-	std::vector<Spring> &springs) {
-
-    for (int x = 0; x < pointsPerSide; x++) {
-        for (int y = 0; y < pointsPerSide; y++) {
-            for (int z = 0; z < pointsPerSide; z++) {
-                // (0,0,0) or (0.1,0.1,0.1) and all combinations
-                float px = x / 10.0;
-                float py = y / 10.0 + kDropHeight;
-                float pz = z / 10.0;
-                Point p = {px, py, pz, 0, 0, 0, 0.1, 0, 0};
-                points.push_back(p);
-            }
-        }
-    }
-    std::map<int, std::vector<int>> connected;
-    double ppsSquare = pointsPerSide * pointsPerSide;
-    connected[0] = {};
-    // Create the springs
-    for (int x = 0; x < pointsPerSide; x++) {
-        for (int y = 0; y < pointsPerSide; y++) {
-            for (int z = 0; z < pointsPerSide; z++) {
-                int p1index = z + pointsPerSide * y + ppsSquare * x;
-
-                Point p1 = points[p1index];
-                for (int x1 = x - 1; x1 < x + 2; x1++) {
-                    if (x1 == pointsPerSide || x1 < 0) {
-                        continue;
-                    }
-                    for (int y1 = y - 1; y1 < y + 2; y1++) {
-                        if (y1 == pointsPerSide || y1 < 0) {
-                            continue;
-                        }
-                        for (int z1 = z - 1; z1 < z + 2; z1++) {
-                            if (z1 == pointsPerSide || z1 < 0 || (x1 == x && y1 == y && z1 == z)) {
-                                continue;
-                            }
-                            int p2index = z1 + pointsPerSide * y1 + ppsSquare * x1;
-                            if (connected.find(p2index) == connected.end()) {
-                                connected[p2index] = {};
-                            }
-                            if (std::find(connected[p1index].begin(), connected[p1index].end(), p2index) != connected[p1index].end()) {
-                                continue;
-                            }
-                            connected[p1index].push_back(p2index);
-                            connected[p2index].push_back(p1index);
-
-                            Point p2 = points[p2index];
-                            float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
-                            Spring s = {kSpring, p1index, p2index, length, p1.numSprings, p2.numSprings};
-                            springs.push_back(s);
-                            points[p1index].numSprings += 1;
-                            points[p2index].numSprings += 1;
-                            p1.numSprings += 1;
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

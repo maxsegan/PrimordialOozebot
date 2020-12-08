@@ -68,7 +68,7 @@ int main() {
     // In this stage do baseball leagues too, maybe 100k iterations, then create another one (recursive) as it's competitor
     while (numEvaluations < maxEvaluations) {
         numEvaluations += generation.selectAndMate();
-        printf("Finished run #%d\n", numEvaluations);
+        //printf("Finished run #%d\n", numEvaluations);
     }
     // TODO hill climb at the end of each generation
     return 0;
