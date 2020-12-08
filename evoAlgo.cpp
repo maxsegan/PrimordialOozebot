@@ -30,7 +30,7 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 20000; // TODO take as a param
+    int maxEvaluations = 100000; // TODO take as a param
     const int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
@@ -66,11 +66,11 @@ int main() {
         }
     }
 
-    int numEvaluations = minNumSolutions;
+    int numEvaluations = randomSeedNum;
     // In this stage do baseball leagues too, maybe 100k iterations, then create another one (recursive) as it's competitor
     while (numEvaluations < maxEvaluations) {
         numEvaluations += generation.selectAndMate();
-        //printf("Finished run #%d\n", numEvaluations);
+        printf("Finished run #%d\n", numEvaluations);
     }
     // TODO hill climb at the end of each generation
     return 0;
