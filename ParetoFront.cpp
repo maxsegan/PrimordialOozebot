@@ -155,7 +155,7 @@ void ParetoFront::resize() {
         while (fitnessIndex >= this->buckets[lengthAdjIndex].size()) {
             this->buckets[lengthAdjIndex].push_back(0);
         }
-        this->buckets[lengthAdjIndex][fitnessIndex] = fitness;
+        this->buckets[lengthAdjIndex][fitnessIndex] += 1;
     }
 }
 
