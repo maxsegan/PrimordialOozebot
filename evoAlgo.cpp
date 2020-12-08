@@ -30,7 +30,7 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 100000; // TODO take as a param
+    int maxEvaluations = 20000; // TODO take as a param
     const int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
