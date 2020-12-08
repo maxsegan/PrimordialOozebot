@@ -29,7 +29,7 @@ void ParetoSelector::insertOozebot(OozebotEncoding encoding) {
             (*iter).dominating.push_back(encoding.id);
         }
     }
-    this->idToIndex[encoding.id] = this->generation.size();
+    this->idToIndex[encoding.id] = (int) this->generation.size();
     this->generation.push_back(wrapper);
 }
 
@@ -62,7 +62,7 @@ int ParetoSelector::selectAndMate() {
         this->generation[4].encoding
     };
 
-    const int asyncThreads = 35;
+    const int asyncThreads = 50;
 
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {
@@ -117,7 +117,7 @@ int ParetoSelector::selectAndMate() {
 // Sort is O(N^2)
 void ParetoSelector::sort() {
     std::vector<std::vector<OozebotSortWrapper>> workingVec;
-    int numLeft = this->generation.size();
+    int numLeft = (int) this->generation.size();
     while (numLeft > 0) {
         std::vector<OozebotSortWrapper> nextTier;
         for (std::vector<OozebotSortWrapper>::iterator iter = this->generation.begin(); iter != this->generation.end(); iter++) {
@@ -142,8 +142,8 @@ void ParetoSelector::sort() {
     nextGeneration.reserve(this->generation.size());
     for (auto it = workingVec.begin(); it != workingVec.end(); ++it) {
         for (auto iter = (*it).begin(); iter != (*it).end(); ++iter) {
-            (*iter).dominationDegree = (*iter).dominated.size();
-            this->idToIndex[(*iter).encoding.id] = nextGeneration.size();
+            (*iter).dominationDegree = (int) (*iter).dominated.size();
+            this->idToIndex[(*iter).encoding.id] = (int) nextGeneration.size();
             nextGeneration.push_back(*iter);
             if (nextGeneration.size() == this->generationSize) {
                 break;

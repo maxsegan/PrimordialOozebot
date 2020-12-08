@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <chrono>
+#include <cuda_runtime.h>
 
 #include "cudaSim.h"
 

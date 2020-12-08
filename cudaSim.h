@@ -2,7 +2,6 @@
 #define CUDA_SIM
 
 #include <vector>
-#include <cuda_runtime.h>
 
 struct Point {
   float x; // meters

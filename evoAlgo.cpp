@@ -3,10 +3,11 @@
 #include <map>
 #include <time.h>
 #include <thread>
+#include <chrono>
+#include <thread>
 #include <future>
 #include "OozebotEncoding.h"
 #include "ParetoSelector.h"
-//#include <chrono>
 
 // Usage: nvcc -O2 evoAlgo.cu -o evoAlgo -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.27.29110\bin\Hostx64\x64" cudaSim.cu OozebotEncoding.cpp ParetoSelector.cpp ParetoFront.cpp
 
@@ -27,7 +28,7 @@ int main() {
     // – Novelty / Diversity
     // – Robustness / sensitivity
 
-    srand(time(NULL));
+    srand((unsigned int) time(NULL));
 
     int maxEvaluations = 100000; // TODO take as a param
     const int minNumSolutions = 300; // TODO take as a param
@@ -35,7 +36,7 @@ int main() {
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    const int asyncThreads = 35;
+    const int asyncThreads = 50;
 
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {

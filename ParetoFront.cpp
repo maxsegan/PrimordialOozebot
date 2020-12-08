@@ -34,7 +34,7 @@ void logEncoding(OozebotEncoding encoding) {
             myfile << ",";
         }
         first = false;
-        exteriorPoints[it - inputs.points.begin()] = i++;
+        exteriorPoints[(int) (it - inputs.points.begin())] = i++;
         myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
     }
     myfile << "],\n";
@@ -60,7 +60,7 @@ void logEncoding(OozebotEncoding encoding) {
         myfile << "[\n";
         first = true;
         for (auto it = handle.points.begin(); it != handle.points.end(); ++it) {
-            int i = it - handle.points.begin();
+            int i = (int) (it - handle.points.begin());
             if (exteriorPoints.find(i) == exteriorPoints.end()) {
                 continue;
             }
@@ -76,9 +76,9 @@ void logEncoding(OozebotEncoding encoding) {
         } else {
             myfile << "],\n";
             if (t == 0) {
-                handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, encoding.id, 1.0);
+                handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, (int) encoding.id, 1.0);
             } else {
-                simulateAgain(handle, inputs.springPresets, t, t + dt, encoding.globalTimeInterval, encoding.id);
+                simulateAgain(handle, inputs.springPresets, t, t + dt, encoding.globalTimeInterval, (int) encoding.id);
             }
             resolveAndKeepAlive(handle);
         }
@@ -98,11 +98,11 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
         while (lengthAdjBucket >= buckets.size()) {
             buckets.push_back({});
         }
-        printf("%d: %f, lengthAdj\n", encoding.id, encoding.lengthAdj);
+        printf("%d: %f, lengthAdj\n", (int) encoding.id, encoding.lengthAdj);
     }
     if (encoding.fitness > this->maxFitness) {
         this->maxFitness = encoding.fitness;
-        printf("%d: %f, fitness\n", encoding.id, encoding.fitness);
+        printf("%d: %f, fitness\n", (int) encoding.id, encoding.fitness);
     }
     
     int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
@@ -139,7 +139,7 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
 }
 
 void ParetoFront::resize() {
-    this->lastResize = allResults.size();
+    this->lastResize = (int) allResults.size();
     this->buckets = {};
     this->lengthAdjBucketSize = this->maxLengthAdj / 100;
     this->fitnessBucketSize = this->maxFitness / 100;

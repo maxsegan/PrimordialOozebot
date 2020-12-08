@@ -10,7 +10,7 @@
 #include <time.h>
 #include <thread>
 
-#include "oozebotEncoding.h"
+#include "OozebotEncoding.h"
 
 const int kNumBoxes = 6;
 const int kMaxLayAndMoveSequences = 4;
@@ -23,6 +23,22 @@ std::atomic<unsigned long int> GlobalId(1);
 bool springSortFunction(OozebotExpression a, OozebotExpression b) {
     return (a.b > b.b);
 }
+
+struct Coordinate
+{
+    int x, y, z;
+    Coordinate(int x, int y, int z) : x(x), y(y), z(z) {}
+    bool operator<(const Coordinate& rhs) const
+        {
+            if (x<rhs.x) return true;
+            if (x==rhs.x)
+            {
+                if (y<rhs.y) return true;
+                if (y==rhs.y) return z<rhs.z;
+            }
+            return false;
+        }
+};
 
 #if defined (_MSC_VER)  // Visual studio
     #define thread_local __declspec( thread )
@@ -202,7 +218,7 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
         double interval = encoding.globalTimeInterval + seed;
         encoding.globalTimeInterval = std::min(std::max(interval, 1.0), 10.0);
     } else if (r < 30) {
-        int index = randomInRange(0, encoding.boxCommands.size() - 1);
+        int index = randomInRange(0, (int) (encoding.boxCommands.size() - 1));
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         r = randomInRange(0, 4);
         if (r == 0) {
@@ -223,12 +239,12 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
         }
         std::sort(encoding.boxCommands.begin(), encoding.boxCommands.end(), springSortFunction);
     } else if (r < 60) {
-        int index = randomInRange(0, encoding.layAndMoveCommands.size() - 1);
-        int subIndex = randomInRange(0, encoding.layAndMoveCommands[index].size() - 1);
+        int index = randomInRange(0, (int) (encoding.layAndMoveCommands.size() - 1));
+        int subIndex = randomInRange(0, (int) (encoding.layAndMoveCommands[index].size() - 1));
         encoding.layAndMoveCommands[index][subIndex].direction = static_cast<OozebotDirection>(randomInRange(0, 5));
         encoding.layAndMoveCommands[index][subIndex].blockIdx = randomInRange(0, kNumBoxes - 1);
     } else {
-        int index = randomInRange(0, encoding.growthCommands.size() - 1);
+        int index = randomInRange(0, (int) (encoding.growthCommands.size() - 1));
         if (encoding.growthCommands[index].expressionType == symmetryScope) {
             encoding.growthCommands[index].scopeAxis = static_cast<OozebotAxis>(randomInRange(0, 2));
         } else {
@@ -294,48 +310,34 @@ void layBlockAtPosition(
     int z,
     std::vector<Point> &points,
     std::vector<Spring> &springs,
-    std::map<int, std::map<int, std::map<int, int>>> &pointLocationToIndexMap,
-    std::map<int, std::map<int, bool>> &pointIndexHasSpring,
+    std::map<Coordinate, int> &pointLocationToIndexMap,
+    std::map<std::pair<int, int>, bool> &pointIndexHasSpring,
     OozebotExpression boxCommand,
     int idx) {
-    int i = 0;
     std::vector<int> pointIndices;
     // first make the points
     for (int xi = x; xi < x + 2; xi++) {
         for (int yi = y; yi < y + 2; yi++) {
             for (int zi = z; zi < z + 2; zi++) {
-                if (pointLocationToIndexMap.find(xi) == pointLocationToIndexMap.end()) {
-                    std::map<int, std::map<int, int>> innerMap;
-                    pointLocationToIndexMap[xi] = innerMap;
-                }
-                if (pointLocationToIndexMap[xi].find(yi) == pointLocationToIndexMap[xi].end()) {
-                    std::map<int, int> innermostMap;
-                    pointLocationToIndexMap[xi][yi] = innermostMap;
-                }
-                if (pointLocationToIndexMap[xi][yi].find(zi) == pointLocationToIndexMap[xi][yi].end()) {
+                Coordinate p = {xi, yi, zi};
+                if (pointLocationToIndexMap.find(p) == pointLocationToIndexMap.end()) {
                     // It wasn't already there so we add it
-                    pointLocationToIndexMap[xi][yi][zi] = points.size();
+                    pointLocationToIndexMap[p] = (int) points.size();
                     Point p = {xi / 10.0f, yi / 10.0f, zi / 10.0f, 0, 0, 0, boxCommand.kg, 0, 0};
                     points.push_back(p);
                 }
-                pointIndices.push_back(pointLocationToIndexMap[xi][yi][zi]);
-                i++;
+                pointIndices.push_back(pointLocationToIndexMap[p]);
             }
         }
     }
     // now make the springs
-    i = 0;
     for (int ii = 0; ii < pointIndices.size(); ii++) {
         for (int jj = ii + 1; jj < pointIndices.size(); jj++) {
             int first = std::min(pointIndices[ii], pointIndices[jj]);
             int second = std::max(pointIndices[ii], pointIndices[jj]);
             // always index from smaller to bigger so we don't have to double bookkeep
-            if (pointIndexHasSpring.find(first) == pointIndexHasSpring.end()) {
-                std::map<int, bool> innerMap;
-                pointIndexHasSpring[first] = innerMap;
-            }
-            if (pointIndexHasSpring[first].find(second) == pointIndexHasSpring[first].end()) {
-                pointIndexHasSpring[first][second] = true;
+            if (pointIndexHasSpring.find({first, second}) == pointIndexHasSpring.end()) {
+                pointIndexHasSpring[{first, second}] = true;
                 Point p1 = points[first];
                 Point p2 = points[second];
                 float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) + pow(p1.z - p2.z, 2));
@@ -344,14 +346,13 @@ void layBlockAtPosition(
                 points[first].numSprings += 1;
                 points[second].numSprings += 1;
             }
-            i++;
         }
     }
 }
 
 int processExtremity(
     std::vector<OozebotExpression> &sequence,
-    std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> &boxIndexSpringType,
+    std::map<Coordinate, std::pair<int, int>> &boxIndexSpringType,
     int radius,
     OozebotAxis thicknessIgnoreAxis,
     int x,
@@ -383,26 +384,19 @@ int processExtremity(
         }
 
         for (int xi = minX; xi <= maxX; xi++) {
-            if (boxIndexSpringType.find(xi) == boxIndexSpringType.end()) {
-                std::map<int, std::map<int, std::pair<int, int>>> innerMap;
-                boxIndexSpringType[xi] = innerMap;
-            }
             for (int yi = minY; yi <= maxY; yi++) {
                 int dist = abs(xi - x) + abs(yi - y);
                 if (dist > radius) {
                     continue;
-                }
-                if (boxIndexSpringType[xi].find(yi) == boxIndexSpringType[xi].end()) {
-                    std::map<int, std::pair<int, int>> innerMap;
-                    boxIndexSpringType[xi][yi] = innerMap;
                 }
                 for (int zi = minZ; zi <= maxZ; zi++) {
                     int totalDist = dist + abs(zi - z);
                     if (totalDist > radius) {
                         continue;
                     }
-                    if (boxIndexSpringType[xi][yi].find(zi) == boxIndexSpringType[xi][yi].end() || boxIndexSpringType[xi][yi][zi].first > totalDist) {
-                        boxIndexSpringType[xi][yi][zi] = {totalDist, cmd.blockIdx};
+                    Coordinate c = {xi, yi, zi};
+                    if (boxIndexSpringType.find(c) == boxIndexSpringType.end() || boxIndexSpringType[c].first > totalDist) {
+                        boxIndexSpringType[c] = {totalDist, cmd.blockIdx};
                         globalMinY = std::min(globalMinY, yi); // only update minY when we actually lay a block - otherwise we could end at a new low without laying
                     }
                 }
@@ -462,10 +456,8 @@ int processExtremity(
     return globalMinY;
 }
 
-bool outOfBounds(std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> &boxIndexSpringType, int x, int y, int z) {
-    if (boxIndexSpringType.find(x) == boxIndexSpringType.end() ||
-        boxIndexSpringType[x].find(y) == boxIndexSpringType[x].end() ||
-        boxIndexSpringType[x][y].find(z) == boxIndexSpringType[x][y].end()) {
+bool outOfBounds(std::map<Coordinate, std::pair<int, int>> &boxIndexSpringType, int x, int y, int z) {
+    if (boxIndexSpringType.find({x, y, z}) == boxIndexSpringType.end()) {
         return true;
     }
     return false;
@@ -473,8 +465,8 @@ bool outOfBounds(std::map<int, std::map<int, std::map<int, std::pair<int, int>>>
 
 int processExtremityWithAnchor(
     std::vector<OozebotExpression> &sequence,
-    std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> &bodyIndexSpringType,
-    std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> &boxIndexSpringType,
+    std::map<Coordinate, std::pair<int, int>> &bodyIndexSpringType,
+    std::map<Coordinate, std::pair<int, int>> &boxIndexSpringType,
     int radius,
     OozebotAxis thicknessIgnoreAxis,
     int anchorX,
@@ -564,7 +556,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     }
 
     // x -> y -> z -> (distance, box_index)
-    std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> bodyIndexSpringType;
+    std::map<Coordinate, std::pair<int, int>> bodyIndexSpringType;
     int minY = processExtremity(
         encoding.layAndMoveCommands[encoding.bodyCommand.layAndMoveIdx],
         bodyIndexSpringType,
@@ -576,7 +568,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
         false,
         false,
         false);
-    std::map<int, std::map<int, std::map<int, std::pair<int, int>>>> extremityIndexSpringType;
+    std::map<Coordinate, std::pair<int, int>> extremityIndexSpringType;
     bool invertX = false;
     bool invertY = false;
     bool invertZ = false;
@@ -619,50 +611,36 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
 
     // All indexes are points in 3 space times 10 (position on tenth of a meter, index by integer)
     // Largest value is 100, smallest is -100 on each axis
-    std::map<int, std::map<int, std::map<int, int>>> pointLocationToIndexMap;
-    std::map<int, std::map<int, bool>> pointIndexHasSpring;
+    std::map<Coordinate, int> pointLocationToIndexMap;
+    std::map<std::pair<int, int>, bool> pointIndexHasSpring;
 
     // Now we have priority of each material for each slot so we can lay the body
     for (auto iter = bodyIndexSpringType.begin(); iter != bodyIndexSpringType.end(); iter++) {
-        int x = iter->first;
-        for (auto ite = iter->second.begin(); ite != iter->second.end(); ite++) {
-            int y = ite->first;
-            for (auto it = ite->second.begin(); it != ite->second.end(); it++) {
-                int z = it->first;
-                int boxIndex = it->second.second;
-                layBlockAtPosition(
-                    x,
-                    y,
-                    z,
-                    points,
-                    springs,
-                    pointLocationToIndexMap,
-                    pointIndexHasSpring,
-                    encoding.boxCommands[boxIndex],
-                    boxIndex);
-            }
-        }
+        int boxIndex = iter->second.second;
+        layBlockAtPosition(
+            (*iter).first.x,
+            (*iter).first.y,
+            (*iter).first.z,
+            points,
+            springs,
+            pointLocationToIndexMap,
+            pointIndexHasSpring,
+            encoding.boxCommands[boxIndex],
+            boxIndex);
     }
     // Now we lay the extremities
     for (auto iter = extremityIndexSpringType.begin(); iter != extremityIndexSpringType.end(); iter++) {
-        int x = iter->first;
-        for (auto ite = iter->second.begin(); ite != iter->second.end(); ite++) {
-            int y = ite->first;
-            for (auto it = ite->second.begin(); it != ite->second.end(); it++) {
-                int z = it->first;
-                int boxIndex = it->second.second;
-                layBlockAtPosition(
-                    x,
-                    y,
-                    z,
-                    points,
-                    springs,
-                    pointLocationToIndexMap,
-                    pointIndexHasSpring,
-                    encoding.boxCommands[boxIndex],
-                    boxIndex);
-            }
-        }
+        int boxIndex = iter->second.second;
+        layBlockAtPosition(
+           (*iter).first.x,
+           (*iter).first.y,
+           (*iter).first.z,
+            points,
+            springs,
+            pointLocationToIndexMap,
+            pointIndexHasSpring,
+            encoding.boxCommands[boxIndex],
+            boxIndex);
     }
 
     float smallestX = 100;
