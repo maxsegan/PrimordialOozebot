@@ -62,7 +62,7 @@ int ParetoSelector::selectAndMate() {
         this->generation[4].encoding
     };
 
-    const int asyncThreads = 50;
+    const int asyncThreads = 35;
 
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {

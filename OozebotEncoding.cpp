@@ -281,7 +281,7 @@ AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum
         return { {}, NULL, NULL, NULL};
     }
    
-    return simulate(inputs.points, inputs.springs, inputs.springPresets, 10.0, encoding.globalTimeInterval, streamNum, inputs.length);
+    return simulate(inputs.points, inputs.springs, inputs.springPresets, 5.0, encoding.globalTimeInterval, streamNum, inputs.length);
 }
 
 std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {

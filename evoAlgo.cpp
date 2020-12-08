@@ -36,7 +36,7 @@ int main() {
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    const int asyncThreads = 50;
+    const int asyncThreads = 35;
 
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {
@@ -47,18 +47,19 @@ int main() {
     AsyncSimHandle handle = pair.second;
     
     int j = 0;
-    for (int i = 0; i < minNumSolutions; i++) {
+    const int randomSeedNum = 1000;
+    for (int i = 0; i < randomSeedNum; i++) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
         encoding.lengthAdj = res.second;
         generation.globalParetoFront.evaluateEncoding(encoding);
         generation.insertOozebot(encoding);
 
-        if (i < minNumSolutions - 1) {
+        if (i < randomSeedNum - 1) {
             pair = threads[j].get();
             encoding = pair.first;
             handle = pair.second;
-            if (i < minNumSolutions - asyncThreads) {
+            if (i < randomSeedNum - asyncThreads) {
                 threads[j] = std::async(&gen, i + asyncThreads);
             }
             j = (j + 1) % asyncThreads;
