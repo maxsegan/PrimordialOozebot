@@ -30,7 +30,7 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 20000; // TODO take as a param
+    int maxEvaluations = 10000; // TODO take as a param
     const int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
@@ -47,7 +47,7 @@ int main() {
     AsyncSimHandle handle = pair.second;
     
     int j = 0;
-    const int randomSeedNum = 2000;
+    const int randomSeedNum = maxEvaluations / 10;
     for (int i = 0; i < randomSeedNum; i++) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
