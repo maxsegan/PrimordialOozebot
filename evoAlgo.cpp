@@ -30,13 +30,13 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 50000; // TODO take as a param
+    int maxEvaluations = 20000; // TODO take as a param
     const int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    const int asyncThreads = 5;
+    const int asyncThreads = 35;
 
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {
@@ -80,7 +80,7 @@ int main() {
     OozebotEncoding encoding2 = generation.generation[0].encoding;
     int iterSinceImprovement = 0;
     unsigned long int nextID = numEvaluations;
-    while (iterSinceImprovement < 500) {
+    while (iterSinceImprovement < 100) {
         OozebotEncoding newEncoding1 = mutate(encoding1);
         OozebotEncoding newEncoding2 = mutate(encoding2);
         AsyncSimHandle handle1 = OozebotEncoding::evaluate(newEncoding1, 0);
@@ -105,7 +105,7 @@ int main() {
             printf("New high fitness of %f\n", encoding2.fitness);
         }
     }
-    generation.globalParetoFront.evaluateEncoding(encoding1);
-    generation.globalParetoFront.evaluateEncoding(encoding2);
+    logEncoding(encoding1);
+    logEncoding(encoding2);
     return 0;
 }
