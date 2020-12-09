@@ -332,7 +332,7 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     const double deltaX = endX - handle.startX;
     const double deltaZ = endZ - handle.startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
-    return {fitness, fitness / std::max(1.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
+    return {fitness, fitness / std::max(2.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
 }
 
 void layBlockAtPosition(
