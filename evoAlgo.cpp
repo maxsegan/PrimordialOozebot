@@ -95,7 +95,7 @@ int main() {
     OozebotEncoding encoding2 = generation.generation[secondBestIndex].encoding;
     int iterSinceImprovement = 0;
     unsigned long int nextID = numEvaluations;
-    while (iterSinceImprovement < 100) {
+    while (iterSinceImprovement < 500) {
         OozebotEncoding newEncoding1 = mutate(encoding1);
         OozebotEncoding newEncoding2 = mutate(encoding2);
         AsyncSimHandle handle1 = OozebotEncoding::evaluate(newEncoding1, 0);
