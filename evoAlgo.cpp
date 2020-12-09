@@ -75,9 +75,24 @@ int main() {
     }
 
     // Now we hillclimb the best solution
-    generation.sort();
-    OozebotEncoding encoding1 = generation.generation[0].encoding;
-    OozebotEncoding encoding2 = generation.generation[1].encoding;
+    double bestFitness = 0;
+    double secondBestFitness = 0;
+    int bestIndex = 0;
+    int secondBestIndex = 0;
+    for (int i = 0; i < minNumSolutions; i++) {
+        double fitness = generation.generation[i].encoding.fitness;
+        if (fitness > bestFitness) {
+            secondBestFitness = bestFitness;
+            secondBestIndex = bestIndex;
+            bestFitness = fitness;
+            bestIndex = i;
+        } else if (fitness > secondBestFitness) {
+            secondBestFitness = fitness;
+            secondBestIndex = i;
+        }
+    }
+    OozebotEncoding encoding1 = generation.generation[bestIndex].encoding;
+    OozebotEncoding encoding2 = generation.generation[secondBestIndex].encoding;
     int iterSinceImprovement = 0;
     unsigned long int nextID = numEvaluations;
     while (iterSinceImprovement < 100) {
