@@ -30,7 +30,7 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 20000; // TODO take as a param
+    int maxEvaluations = 10000; // TODO take as a param
     const int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
@@ -77,7 +77,7 @@ int main() {
     // Now we hillclimb the best solution
     generation.sort();
     OozebotEncoding encoding1 = generation.generation[0].encoding;
-    OozebotEncoding encoding2 = generation.generation[0].encoding;
+    OozebotEncoding encoding2 = generation.generation[1].encoding;
     int iterSinceImprovement = 0;
     unsigned long int nextID = numEvaluations;
     while (iterSinceImprovement < 100) {
