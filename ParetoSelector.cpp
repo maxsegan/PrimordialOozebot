@@ -117,7 +117,7 @@ int ParetoSelector::selectAndMate() {
 // Sort is O(N^2)
 void ParetoSelector::sort() {
     std::vector<std::vector<OozebotSortWrapper>> workingVec;
-    int numLeft = (int) this->generation.size();
+    int numLeft = (int) this->generationSize;
     while (numLeft > 0) {
         std::vector<OozebotSortWrapper> nextTier;
         for (std::vector<OozebotSortWrapper>::iterator iter = this->generation.begin(); iter != this->generation.end(); iter++) {
@@ -139,7 +139,7 @@ void ParetoSelector::sort() {
     }
     this->idToIndex.clear();
     std::vector<OozebotSortWrapper> nextGeneration;
-    nextGeneration.reserve(this->generation.size());
+    nextGeneration.reserve(this->generationSize);
     for (auto it = workingVec.begin(); it != workingVec.end(); ++it) {
         for (auto iter = (*it).begin(); iter != (*it).end(); ++iter) {
             (*iter).dominationDegree = (int) (*iter).dominated.size();
