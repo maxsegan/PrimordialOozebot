@@ -110,8 +110,8 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    const int numEvaluationsPerGeneration = 12; // TODO take as a param
-    const int generationSize = 6; // TODO take as a param
+    const int numEvaluationsPerGeneration = 30; // TODO take as a param
+    const int generationSize = 15; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
     ParetoSelector generation = runRecursive(mutationRate, generationSize, numEvaluationsPerGeneration, 3);
