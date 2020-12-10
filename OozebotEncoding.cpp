@@ -77,7 +77,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
             boxCreationExpression.b = 0;
         } else {
             r = randFloat(); // 0 to 1
-            boxCreationExpression.b = -0.8 + r * 1.6;
+            boxCreationExpression.b = r * 0.66;
         }
         r = randFloat(); // 0 to 1
         boxCreationExpression.c = r * 2 * M_PI;
@@ -256,7 +256,7 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
             encoding.boxCommands[index].a = std::min(std::max(a, 0.5), 1.5);
         } else if (r == 2) {
             double b = encoding.boxCommands[index].b + seed * 0.05;
-            encoding.boxCommands[index].b = std::min(std::max(b, -0.8), 0.8);
+            encoding.boxCommands[index].b = std::min(std::max(b, 0.0), 0.66);
         } else if (r == 3) {
             double c = encoding.boxCommands[index].c + seed * 0.1;
             encoding.boxCommands[index].c = std::min(std::max(c, 0.0), 2 * M_PI);
