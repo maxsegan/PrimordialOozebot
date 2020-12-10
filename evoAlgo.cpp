@@ -78,7 +78,7 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFro
 ParetoSelector runRecursive(double mutationRate, int generationSize, int numEvaluations, int recursiveDepth, ParetoFront &globalFront) {
     if (recursiveDepth == 0) {
         printf("Kicking off random search\n");
-        return runRandomSearch(numEvaluations / 2, generationSize / 2, globalFront);
+        return runRandomSearch(numEvaluations / 4, generationSize / 2, globalFront);
     }
     ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront);
     ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront);

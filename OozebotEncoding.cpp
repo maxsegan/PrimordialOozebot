@@ -335,7 +335,7 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     const double deltaX = endX - handle.startX;
     const double deltaZ = endZ - handle.startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
-    return {fitness, fitness / std::max(0.6, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
+    return {fitness, fitness / std::max(0.75, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
 }
 
 void layBlockAtPosition(
@@ -357,7 +357,7 @@ void layBlockAtPosition(
                 if (pointLocationToIndexMap.find(p) == pointLocationToIndexMap.end()) {
                     // It wasn't already there so we add it
                     pointLocationToIndexMap[p] = (int) points.size();
-                    Point p = {xi / 25.0f, yi / 25.0f, zi / 25.0f, 0, 0, 0, boxCommand.kg, 0, 0};
+                    Point p = {xi / 20.0f, yi / 20.0f, zi / 20.0f, 0, 0, 0, boxCommand.kg, 0, 0};
                     points.push_back(p);
                 }
                 pointIndices.push_back(pointLocationToIndexMap[p]);
@@ -685,7 +685,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     float largestZ = -100;
     // ground robot on lowest point
     for (auto it = points.begin(); it != points.end(); ++it) {
-        (*it).y -= (double(minY) / 25.0);
+        (*it).y -= (double(minY) / 20.0);
         smallestX = std::min((*it).x, smallestX);
         largestX = std::max((*it).x, largestX);
         smallestY = std::min((*it).y, smallestY);
