@@ -62,9 +62,9 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
     for (int i = 0; i < kNumBoxes; i++) {
         OozebotExpression boxCreationExpression;
         boxCreationExpression.expressionType = boxDeclaration;
-        boxCreationExpression.kg = 0.001 + randFloat() * 0.09;
+        boxCreationExpression.kg = 0.001 + randFloat() * 0.099;
         double r = randFloat(); // 0 to 1
-        boxCreationExpression.k = 500 + r * 9500;
+        boxCreationExpression.k = 500.0 + r * 9500.0;
         r = randFloat(); // 0 to 1
         if (r < 0.5) { // half the time have it be 1
             boxCreationExpression.a = 1;
@@ -96,13 +96,13 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
             // Add bias to duplicate direction and type
             if (j > 0) {
                 double r = randFloat(); // 0 to 1
-                if (r < 0.5) { // Half the time we keep the same direction
+                if (r < 0.6) { // Half the time we keep the same direction
                     layAndMoveExpression.direction = sequence[j - 1].direction;
                 } else {
                     layAndMoveExpression.direction = static_cast<OozebotDirection>(randomInRange(0, 5));
                 }
                 r = randFloat(); // 0 to 1
-                if (r < 0.5) { // half the time we keep the same block type
+                if (r < 0.6) { // half the time we keep the same block type
                     layAndMoveExpression.blockIdx = sequence[j - 1].blockIdx;
                 } else {
                     layAndMoveExpression.blockIdx = randomInRange(0, kNumBoxes - 1);
@@ -156,7 +156,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
     double r = randFloat(); // 0 to 1
     encoding.globalTimeInterval = 0.5 + r * 14.5;
     encoding.lengthAdj = 0;
-    encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed); ;
+    encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed);
     encoding.boxCommands = boxCommands;
     encoding.layAndMoveCommands = layAndMoveSequences;
     encoding.bodyCommand = bodyCommand;
@@ -312,6 +312,18 @@ AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum
 }
 
 std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
+    synchronize(handle);
+    double mass = 0;
+    double startX = 0;
+    double startZ = 0;
+    for (auto point : points) {
+        double pm = point.mass;
+        startX += point.x * pm;
+        startZ += point.z * pm;
+        mass += pm;
+    }
+    startX = (startX / mass);
+    startZ = (startZ / mass);
     resolveSim(handle);
     if (handle.points.size() == 0) {
         printf("failure\n");
@@ -319,7 +331,6 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     }
     double endX = 0;
     double endZ = 0;
-    double mass = 0;
     for (const auto point : handle.points) {
         if (isnan(point.x) || isinf(point.x) || isnan(point.z) || isinf(point.z)) {
             printf("Solution has NaN or inf\n");
@@ -328,7 +339,6 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
         double pm = point.mass;
         endX += point.x * pm;
         endX += point.z * pm;
-        mass += pm;
     }
     endX = endX / mass;
     endZ = endZ / mass;

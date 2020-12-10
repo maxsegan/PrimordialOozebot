@@ -52,6 +52,9 @@ struct AsyncSimHandle {
 // Updates the x, y, and z values of the points after running a simulation for n seconds
 AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum, double length);
 
+// Ensure that we write stable initial condition to "points"
+void synchronize(AsyncSimHandle &handle);
+
 void resolveAndKeepAlive(AsyncSimHandle &handle);
 
 void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency, int streamNum);

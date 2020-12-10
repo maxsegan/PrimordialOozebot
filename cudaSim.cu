@@ -152,8 +152,6 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     }
     std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
     int springDeltaIndex  = 0;
-    double startX = 0;
-    double startZ = 0;
     for (int i = 0; i < points.size(); i++) {
         points[i].springDeltaIndex = springDeltaIndex;
         springDeltaIndex += points[i].numSprings;
@@ -203,21 +201,17 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
         if (t < 1.0 && t + dt >= 1.0) {
-            HANDLE_ERROR(cudaMemcpy(&points[0], p_d, numPoints * sizeof(Point), cudaMemcpyDeviceToHost));
-            double mass = 0;
-            for (auto point : points) {
-                double pm = point.mass;
-                startX += point.x * pm;
-                startZ += point.z * pm;
-                mass += pm;
-            }
-            startX = (startX / mass);
-            startZ = (startZ / mass);
+            HANDLE_ERROR(cudaMemcpyAsync(&points[0], p_d, numPoints * sizeof(Point), cudaMemcpyDeviceToHost));
         }
         t += dt;
     }
 
-    return {points, p_d, s_d, ps_d, numSprings, length, startX, startZ, deviceNumber};
+    return {points, p_d, s_d, ps_d, numSprings, length, deviceNumber};
+}
+
+void synchronize(AsyncSimHandle &handle) {
+    HANDLE_ERROR(cudaSetDevice(handle.device));
+    cudaDeviceSynchronize();
 }
 
 void resolveAndKeepAlive(AsyncSimHandle &handle) {
