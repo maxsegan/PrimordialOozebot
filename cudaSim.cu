@@ -164,7 +164,6 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     if (nDevices > 1) {
         deviceNumber = streamNum % nDevices;
         HANDLE_ERROR(cudaSetDevice(deviceNumber));
-        printf("Device %d\n", deviceNumber);
     }
 
     Point *p_d;
@@ -213,13 +212,11 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         }
         t += dt;
     }
-    printf("device #%d\n", deviceNumber);
 
     return {points, p_d, s_d, ps_d, numSprings, length, t - 1.0, deviceNumber};
 }
 
 void synchronize(AsyncSimHandle &handle) {
-    printf("device #%d\n", handle.device);
     HANDLE_ERROR(cudaSetDevice(handle.device));
     cudaDeviceSynchronize();
 }
@@ -260,7 +257,6 @@ void resolveSim(AsyncSimHandle &handle) {
     if (handle.points.size() == 0) {
         return;
     }
-    printf("device #%d\n", handle.device);
     HANDLE_ERROR(cudaSetDevice(handle.device));
     HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
     
