@@ -39,7 +39,6 @@ public:
     // returns number of evaluations
     int selectAndMate();
 
-private:
     std::vector<OozebotSortWrapper> generation;
     std::vector<double> indexToProbability;
     std::map<signed long int, int> idToIndex;

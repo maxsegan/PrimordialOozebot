@@ -127,11 +127,7 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
 
     this->encodingFront.push_back(encoding);
 
-    if (encoding.id > 1000) { // Don't log the early ones that are just noise
-        std::thread(logEncoding, encoding).detach();
-    } else {
-        printf("New pareto front for %d with fitness %f\n", encoding.id, encoding.fitness);
-    }
+    std::thread(logEncoding, encoding).detach();
 
     return true;
 }

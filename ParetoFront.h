@@ -5,6 +5,8 @@
 #include <vector>
 #include "OozebotEncoding.h"
 
+void logEncoding(OozebotEncoding encoding);
+
 class ParetoFront {
 public:
     // This functions will add the evaluated encoding and invalidate others appropriately

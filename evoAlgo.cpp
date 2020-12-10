@@ -21,7 +21,7 @@ std::pair<OozebotEncoding, AsyncSimHandle> gen(int i) {
     return {encoding, handle};
 }
 
-ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> initialPop, string logToken) {
+ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> initialPop) {
     ParetoSelector generation(generationSize, mutationRate);
     for (auto oozebot : initialPop) {
         generation.insertOozebot(oozebot);
@@ -30,7 +30,7 @@ ParetoSelector runGenerations(double mutationRate, int generationSize, int numEv
     int evaluationNumber = 0;
     while (evaluationNumber < numEvaluations) {
         evaluationNumber += generation.selectAndMate();
-        printf("Finished run #%d for eval %s\n", evaluationNumber, logToken);
+        printf("Finished run #%d for eval %s\n", evaluationNumber);
     }
 
     return generation;
@@ -72,6 +72,28 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize) {
     return generation;
 }
 
+ParetoSelector runRecursive(double mutationRate, int generationSize, int numEvaluations, int recursiveDepth) {
+    if (recursiveDepth == 0) {
+        printf("Kicking off random search\n");
+        return runRandomSearch(numEvaluations / 2, generationSize)
+    }
+    ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth);
+    ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth);
+    firstSelector.sort();
+    secondSelector.sort();
+    std::vector<OozebotEncoding> initialPop;
+    for (int i = 0; i < generationSize; i++) {
+        if (i < generationSize / 2) {
+            initialPop.push_back(firstSelector.generation[i]);
+        } else {
+            initialPop.push_back(secondSelector.generation[i - generationSize / 2]);
+        }
+    }
+
+    printf("Kicking generation of depth %d\n", recursiveDepth);
+    return runGenerations(mutationRate, generationSize, numEvaluations, initialPop);
+}
+
 int main() {
     // TODO objectives - fitness, age (in log tenure groupings maybe?), weight?
     // Meta objectives to consider
@@ -82,15 +104,60 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    const int maxEvaluations = 20000; // TODO take as a param
-    const int minNumSolutions = 300; // TODO take as a param
+    const int numEvaluationsPerGeneration = 20000; // TODO take as a param
+    const int generationSize = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
-    ParetoSelector generation(minNumSolutions, mutationRate);
+    ParetoSelector generation = runRecursive(mutationRate, generationSize, int numEvaluationsPerGeneration, int 4);
 
-    int numEvaluations = randomSeedNum;
-    // In this stage do baseball leagues too, maybe 100k iterations, then create another one (recursive) as it's competitor
-    // TODO baseball leagues
-    // TODO hill climb at the end of each generation
+    // Now we hillclimb the best solution(s)
+    double bestFitness = 0;
+    double secondBestFitness = 0;
+    int bestIndex = 0;
+    int secondBestIndex = 0;
+    for (int i = 0; i < minNumSolutions; i++) {
+        double fitness = generation.generation[i].encoding.fitness;
+        if (fitness > bestFitness) {
+            secondBestFitness = bestFitness;
+            secondBestIndex = bestIndex;
+            bestFitness = fitness;
+            bestIndex = i;
+        } else if (fitness > secondBestFitness) {
+            secondBestFitness = fitness;
+            secondBestIndex = i;
+        }
+    }
+    OozebotEncoding encoding1 = generation.generation[bestIndex].encoding;
+    OozebotEncoding encoding2 = generation.generation[secondBestIndex].encoding;
+    int iterSinceImprovement = 0;
+    unsigned long int nextID = numEvaluations;
+    while (iterSinceImprovement < 500) {
+        OozebotEncoding newEncoding1 = mutate(encoding1);
+        OozebotEncoding newEncoding2 = mutate(encoding2);
+        AsyncSimHandle handle1 = OozebotEncoding::evaluate(newEncoding1, 0);
+        AsyncSimHandle handle2 = OozebotEncoding::evaluate(newEncoding2, 1);
+        auto res1 = OozebotEncoding::wait(handle1);
+        auto res2 = OozebotEncoding::wait(handle2);
+        newEncoding1.fitness = res1.first;
+        newEncoding1.lengthAdj = res1.second;
+        newEncoding1.id = ++nextID;
+        newEncoding2.fitness = res2.first;
+        newEncoding2.lengthAdj = res2.second;
+        newEncoding2.id = ++nextID;
+        iterSinceImprovement++;
+        if (newEncoding1.fitness > encoding1.fitness) {
+            encoding1 = newEncoding1;
+            iterSinceImprovement = 0;
+            printf("New high fitness of %f\n", encoding1.fitness);
+        }
+        if (newEncoding2.fitness > encoding2.fitness) {
+            encoding2 = newEncoding2;
+            iterSinceImprovement = 0;
+            printf("New high fitness of %f\n", encoding2.fitness);
+        }
+    }
+    logEncoding(encoding1);
+    logEncoding(encoding2);
+
     return 0;
 }
