@@ -29,7 +29,6 @@ static void HandleError( cudaError_t err,
 #define dt 0.0001
 #define dampening 0.9995
 #define gravity -9.81
-#define kSpring 500.0
 #define kGround -100000.0
 
 __global__ void update_spring(
@@ -210,15 +209,16 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
                 numCycles += 1;
             }
             n = (oscillationDuration * numCycles) + t;
-            printf("Duration %f, cycle %f cycle duration %f n: %f\n", n, oscillationFrequency, oscillationDuration, n);
         }
         t += dt;
     }
+    printf("device #%d\n", deviceNumber);
 
     return {points, p_d, s_d, ps_d, numSprings, length, t - 1.0, deviceNumber};
 }
 
 void synchronize(AsyncSimHandle &handle) {
+    printf("device #%d\n", handle.device);
     HANDLE_ERROR(cudaSetDevice(handle.device));
     cudaDeviceSynchronize();
 }
@@ -259,6 +259,7 @@ void resolveSim(AsyncSimHandle &handle) {
     if (handle.points.size() == 0) {
         return;
     }
+    printf("device #%d\n", handle.device);
     HANDLE_ERROR(cudaSetDevice(handle.device));
     HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
     
