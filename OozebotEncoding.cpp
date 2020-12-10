@@ -249,7 +249,7 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         r = randomInRange(0, 4);
         if (r == 0) {
-            double k = encoding.boxCommands[index].k + seed;
+            double k = encoding.boxCommands[index].k + seed * 50.0;
             encoding.boxCommands[index].k = std::min(std::max(k, 500.0), 10000.0);
         } else if (r == 1) {
             double a = encoding.boxCommands[index].a + seed * 0.1;
@@ -335,7 +335,7 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     const double deltaX = endX - handle.startX;
     const double deltaZ = endZ - handle.startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
-    return {fitness, fitness / std::max(0.3, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
+    return {fitness, fitness / std::max(0.6, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
 }
 
 void layBlockAtPosition(
@@ -357,7 +357,7 @@ void layBlockAtPosition(
                 if (pointLocationToIndexMap.find(p) == pointLocationToIndexMap.end()) {
                     // It wasn't already there so we add it
                     pointLocationToIndexMap[p] = (int) points.size();
-                    Point p = {xi / 50.0f, yi / 50.0f, zi / 50.0f, 0, 0, 0, boxCommand.kg, 0, 0};
+                    Point p = {xi / 25.0f, yi / 25.0f, zi / 25.0f, 0, 0, 0, boxCommand.kg, 0, 0};
                     points.push_back(p);
                 }
                 pointIndices.push_back(pointLocationToIndexMap[p]);
@@ -685,7 +685,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     float largestZ = -100;
     // ground robot on lowest point
     for (auto it = points.begin(); it != points.end(); ++it) {
-        (*it).y -= (double(minY) / 50.0);
+        (*it).y -= (double(minY) / 25.0);
         smallestX = std::min((*it).x, smallestX);
         largestX = std::max((*it).x, largestX);
         smallestY = std::min((*it).y, smallestY);
