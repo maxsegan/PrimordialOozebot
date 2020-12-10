@@ -60,7 +60,7 @@ class OozebotEncoding {
 public:
     double fitness; // Depends on objective - might be net displacement
     double lengthAdj; // Fitness normalized for maximum dimension cross section
-    double globalTimeInterval; // 0.5 - 15
+    double globalTimeInterval; // 0.5 - 10
     unsigned long int id;
 
     static OozebotEncoding mate(OozebotEncoding parent1, OozebotEncoding parent2);

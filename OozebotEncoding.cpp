@@ -154,7 +154,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 
     OozebotEncoding encoding;
     double r = randFloat(); // 0 to 1
-    encoding.globalTimeInterval = 0.5 + r * 14.5;
+    encoding.globalTimeInterval = 0.5 + r * 9.5;
     encoding.lengthAdj = 0;
     encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed);
     encoding.boxCommands = boxCommands;
@@ -243,7 +243,7 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     } else if (r < 8) {
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         double interval = encoding.globalTimeInterval + seed;
-        encoding.globalTimeInterval = std::min(std::max(interval, 0.5), 20.0);
+        encoding.globalTimeInterval = std::min(std::max(interval, 0.5), 10.0);
     } else if (r < 30) {
         int index = randomInRange(0, (int) (encoding.boxCommands.size() - 1));
         double seed = randFloat() - 0.5; // -0.5 to 0.5
@@ -345,7 +345,7 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     const double deltaX = endX - startX;
     const double deltaZ = endZ - startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
-    return {fitness, fitness / std::max(0.75, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
+    return {fitness, fitness / std::max(1.5, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
 }
 
 void layBlockAtPosition(
@@ -367,7 +367,7 @@ void layBlockAtPosition(
                 if (pointLocationToIndexMap.find(p) == pointLocationToIndexMap.end()) {
                     // It wasn't already there so we add it
                     pointLocationToIndexMap[p] = (int) points.size();
-                    Point p = {xi / 20.0f, yi / 20.0f, zi / 20.0f, 0, 0, 0, boxCommand.kg, 0, 0};
+                    Point p = {xi / 10.0f, yi / 10.0f, zi / 10.0f, 0, 0, 0, boxCommand.kg, 0, 0};
                     points.push_back(p);
                 }
                 pointIndices.push_back(pointLocationToIndexMap[p]);
@@ -695,7 +695,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     float largestZ = -100;
     // ground robot on lowest point
     for (auto it = points.begin(); it != points.end(); ++it) {
-        (*it).y -= (double(minY) / 20.0);
+        (*it).y -= (double(minY) / 10.0);
         smallestX = std::min((*it).x, smallestX);
         largestX = std::max((*it).x, largestX);
         smallestY = std::min((*it).y, smallestY);
