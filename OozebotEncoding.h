@@ -32,7 +32,7 @@ class OozebotExpression {
 public:
     OozebotExpressionType expressionType;
 
-    float kg; // 0.01 - 1 
+    float kg; // 0.001 - 0.1
     float k; // 500 - 10,000
     float a; // expressed as a ratio of l0's natural length 0.5-1.5
     float b; // -0.8 - 0.8, often 0
@@ -60,7 +60,7 @@ class OozebotEncoding {
 public:
     double fitness; // Depends on objective - might be net displacement
     double lengthAdj; // Fitness normalized for maximum dimension cross section
-    double globalTimeInterval; // 0.1 - 1
+    double globalTimeInterval; // 0.5 - 15
     unsigned long int id;
 
     static OozebotEncoding mate(OozebotEncoding parent1, OozebotEncoding parent2);

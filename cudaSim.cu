@@ -152,16 +152,10 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     }
     std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
     int springDeltaIndex  = 0;
-    double startX = 0;
-    double startZ = 0;
     for (int i = 0; i < points.size(); i++) {
         points[i].springDeltaIndex = springDeltaIndex;
         springDeltaIndex += points[i].numSprings;
-        startX += points[i].x;
-        startZ += points[i].z;
     }
-    startX = startX / points.size();
-    startZ = startZ / points.size();
 
     int nDevices;
     int deviceNumber = 0;
@@ -206,10 +200,24 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         }
         update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
+        if (t < 1.0 && t + dt >= 1.0) {
+            HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyHostToHost));
+            double startX = 0;
+            double startZ = 0;
+            double mass = 0;
+            for (auto point : handle.points) {
+                double pm = points[i].mass;
+                startX += points[i].x * pm;
+                startZ += points[i].z * pm;
+                mass += pm;
+            }
+            startX = (startX / mass);
+            startZ = (startZ / mass);
+        }
         t += dt;
     }
 
-    return {points, p_d, s_d, ps_d, numSprings, length, startX, startZ, deviceNumber};
+    return {points, p_d, s_d, ps_d, numSprings, startX, startZ, deviceNumber};
 }
 
 void resolveAndKeepAlive(AsyncSimHandle &handle) {

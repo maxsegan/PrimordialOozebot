@@ -45,7 +45,7 @@ struct AsyncSimHandle {
   int numSprings;
   double length;
   double startX;
-  double startZ;
+  double startY;
   int device;
 };
 

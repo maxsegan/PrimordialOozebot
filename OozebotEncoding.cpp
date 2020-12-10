@@ -13,10 +13,10 @@
 #include "OozebotEncoding.h"
 
 const int kNumBoxes = 6;
-const int kMaxLayAndMoveSequences = 4;
-const int kMaxLayAndMoveLength = 25;
-const int kMaxGrowthCommands = 6;
-const int kMaxRadius = 6;
+const int kMaxLayAndMoveSequences = 6;
+const int kMaxLayAndMoveLength = 30;
+const int kMaxGrowthCommands = 8;
+const int kMaxRadius = 8;
 
 std::atomic<unsigned long int> GlobalId(1);
 
@@ -62,7 +62,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
     for (int i = 0; i < kNumBoxes; i++) {
         OozebotExpression boxCreationExpression;
         boxCreationExpression.expressionType = boxDeclaration;
-        boxCreationExpression.kg = 0.01 + randFloat() * 0.99;
+        boxCreationExpression.kg = 0.001 + randFloat() * 0.09;
         double r = randFloat(); // 0 to 1
         boxCreationExpression.k = 500 + r * 9500;
         r = randFloat(); // 0 to 1
@@ -154,7 +154,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 
     OozebotEncoding encoding;
     double r = randFloat(); // 0 to 1
-    encoding.globalTimeInterval = 1 + r * 9;
+    encoding.globalTimeInterval = 0.5 + r * 14.5;
     encoding.lengthAdj = 0;
     encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed); ;
     encoding.boxCommands = boxCommands;
@@ -243,7 +243,7 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     } else if (r < 8) {
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         double interval = encoding.globalTimeInterval + seed;
-        encoding.globalTimeInterval = std::min(std::max(interval, 1.0), 10.0);
+        encoding.globalTimeInterval = std::min(std::max(interval, 0.5), 20.0);
     } else if (r < 30) {
         int index = randomInRange(0, (int) (encoding.boxCommands.size() - 1));
         double seed = randFloat() - 0.5; // -0.5 to 0.5
@@ -261,8 +261,8 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
             double c = encoding.boxCommands[index].c + seed * 0.1;
             encoding.boxCommands[index].c = std::min(std::max(c, 0.0), 2 * M_PI);
         } else {
-            double kg = encoding.boxCommands[index].kg + seed * 0.1;
-            encoding.boxCommands[index].kg = std::min(std::max(kg, 0.01), 1.0);
+            double kg = encoding.boxCommands[index].kg + seed * 0.01;
+            encoding.boxCommands[index].kg = std::min(std::max(kg, 0.001), 0.1);
         }
         std::sort(encoding.boxCommands.begin(), encoding.boxCommands.end(), springSortFunction);
     } else if (r < 60) {
@@ -308,7 +308,7 @@ AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum
         return { {}, NULL, NULL, NULL};
     }
    
-    return simulate(inputs.points, inputs.springs, inputs.springPresets, 5.0, encoding.globalTimeInterval, streamNum, inputs.length);
+    return simulate(inputs.points, inputs.springs, inputs.springPresets, 6.0, encoding.globalTimeInterval, streamNum, inputs.length);
 }
 
 std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
@@ -319,20 +319,23 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     }
     double endX = 0;
     double endZ = 0;
-    for (auto iter = handle.points.begin(); iter != handle.points.end(); ++iter) {
-        endX += (*iter).x;
-        endX += (*iter).z;
-        if (isnan((*iter).x) || isinf((*iter).x) || isnan((*iter).z) || isinf((*iter).z)) {
+    double mass = 0;
+    for (const auto point : handle.points) {
+        if (isnan(point.x) || isinf(point.x) || isnan(point.z) || isinf(point.z)) {
             printf("Solution has NaN or inf\n");
             return {0, 0};
         }
+        double pm = points[i].mass;
+        endX += points[i].x * pm;
+        endX += points[i].z * pm;
+        mass += pm;
     }
-    endX = endX / handle.points.size();
-    endZ = endZ / handle.points.size();
+    endX = endX / mass;
+    endZ = endZ / mass;
     const deltaX = endX - handle.startX;
     const deltaZ = endZ - handle.startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
-    return {fitness, fitness / std::max(1.0, handle.length) }; // Don't incentivize wee little robots - at least 10 length to avoid trivialities
+    return {fitness, fitness / std::max(0.3, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
 }
 
 void layBlockAtPosition(
@@ -354,7 +357,7 @@ void layBlockAtPosition(
                 if (pointLocationToIndexMap.find(p) == pointLocationToIndexMap.end()) {
                     // It wasn't already there so we add it
                     pointLocationToIndexMap[p] = (int) points.size();
-                    Point p = {xi / 10.0f, yi / 10.0f, zi / 10.0f, 0, 0, 0, boxCommand.kg, 0, 0};
+                    Point p = {xi / 50.0f, yi / 50.0f, zi / 50.0f, 0, 0, 0, boxCommand.kg, 0, 0};
                     points.push_back(p);
                 }
                 pointIndices.push_back(pointLocationToIndexMap[p]);
@@ -682,7 +685,7 @@ SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
     float largestZ = -100;
     // ground robot on lowest point
     for (auto it = points.begin(); it != points.end(); ++it) {
-        (*it).y -= (double(minY) / 10.0);
+        (*it).y -= (double(minY) / 50.0);
         smallestX = std::min((*it).x, smallestX);
         largestX = std::max((*it).x, largestX);
         smallestY = std::min((*it).y, smallestY);

@@ -1,5 +1,6 @@
 #include <math.h>
 #include <vector>
+#include <string>
 #include <map>
 #include <time.h>
 #include <thread>
@@ -20,6 +21,57 @@ std::pair<OozebotEncoding, AsyncSimHandle> gen(int i) {
     return {encoding, handle};
 }
 
+ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> initialPop, string logToken) {
+    ParetoSelector generation(generationSize, mutationRate);
+    for (auto oozebot : initialPop) {
+        generation.insertOozebot(oozebot);
+    }
+
+    int evaluationNumber = 0;
+    while (evaluationNumber < numEvaluations) {
+        evaluationNumber += generation.selectAndMate();
+        printf("Finished run #%d for eval %s\n", evaluationNumber, logToken);
+    }
+
+    return generation;
+}
+
+ParetoSelector runRandomSearch(int numEvaluations, int generationSize) {
+    ParetoSelector generation(generationSize, 0);
+
+    const int asyncThreads = 35;
+    std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
+    for (int i = 0; i < asyncThreads; i++) {
+        threads[i] = std::async(&gen, i + 1);
+    }
+    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen(0);
+    OozebotEncoding encoding = pair.first;
+    AsyncSimHandle handle = pair.second;
+    
+    int j = 0;
+    for (int i = 0; i < numEvaluations; i++) {
+        auto res = OozebotEncoding::wait(handle);
+        encoding.fitness = res.first;
+        encoding.lengthAdj = res.second;
+        generation.globalParetoFront.evaluateEncoding(encoding);
+        generation.insertOozebot(encoding);
+
+        if (i < numEvaluations - 1) {
+            pair = threads[j].get();
+            encoding = pair.first;
+            handle = pair.second;
+            if (i < numEvaluations - asyncThreads) {
+                threads[j] = std::async(&gen, i + asyncThreads);
+            }
+            j = (j + 1) % asyncThreads;
+        }
+        if (i % generationSize == 0) {
+            generation.sort();
+        }
+    }
+    return generation;
+}
+
 int main() {
     // TODO objectives - fitness, age (in log tenure groupings maybe?), weight?
     // Meta objectives to consider
@@ -30,49 +82,15 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    int maxEvaluations = 100000; // TODO take as a param
+    const int maxEvaluations = 20000; // TODO take as a param
     const int minNumSolutions = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
     ParetoSelector generation(minNumSolutions, mutationRate);
 
-    const int asyncThreads = 35;
-
-    std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
-    for (int i = 0; i < asyncThreads; i++) {
-        threads[i] = std::async(&gen, i + 1);
-    }
-    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen(0);
-    OozebotEncoding encoding = pair.first;
-    AsyncSimHandle handle = pair.second;
-    
-    int j = 0;
-    const int randomSeedNum = 1000;
-    for (int i = 0; i < randomSeedNum; i++) {
-        auto res = OozebotEncoding::wait(handle);
-        encoding.fitness = res.first;
-        encoding.lengthAdj = res.second;
-        generation.globalParetoFront.evaluateEncoding(encoding);
-        generation.insertOozebot(encoding);
-
-        if (i < randomSeedNum - 1) {
-            pair = threads[j].get();
-            encoding = pair.first;
-            handle = pair.second;
-            if (i < randomSeedNum - asyncThreads) {
-                threads[j] = std::async(&gen, i + asyncThreads);
-            }
-            j = (j + 1) % asyncThreads;
-        }
-    }
-
     int numEvaluations = randomSeedNum;
     // In this stage do baseball leagues too, maybe 100k iterations, then create another one (recursive) as it's competitor
     // TODO baseball leagues
-    while (numEvaluations < maxEvaluations) {
-        numEvaluations += generation.selectAndMate();
-        printf("Finished run #%d\n", numEvaluations);
-    }
     // TODO hill climb at the end of each generation
     return 0;
 }
