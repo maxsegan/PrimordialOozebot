@@ -68,10 +68,10 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFro
             j = (j + 1) % asyncThreads;
         }
         if (i != 0 && i % generationSize == 0) {
-            generation.sort();
             printf("Finished run #%d\n", i);
         }
     }
+    generation.sort();
     return generation;
 }
 
