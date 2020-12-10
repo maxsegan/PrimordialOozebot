@@ -22,11 +22,9 @@ std::pair<OozebotEncoding, AsyncSimHandle> gen(int i) {
 }
 
 ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> &initialPop) {
-    printf("initial pop size%d\n", (int) initialPop.size());
     ParetoSelector generation(generationSize, mutationRate);
     int i = 0;
     for (auto oozebot : initialPop) {
-        printf("%d\n", i++);
         generation.insertOozebot(oozebot);
     }
 
@@ -92,9 +90,7 @@ ParetoSelector runRecursive(double mutationRate, int generationSize, int numEval
         } else {
             initialPop.push_back(secondSelector.generation[i - generationSize / 2].encoding);
         }
-        printf("%d\n", i);
     }
-    printf("pop size %d\n", (int) initialPop.size());
 
     printf("Kicking generation of depth %d\n", recursiveDepth);
     return runGenerations(mutationRate, generationSize, numEvaluations, initialPop);

@@ -120,6 +120,7 @@ int ParetoSelector::selectAndMate() {
 void ParetoSelector::sort() {
     std::vector<std::vector<OozebotSortWrapper>> workingVec;
     int numLeft = (int) this->generation.size();
+    printf("sort 1\n");
     while (numLeft > 0) {
         std::vector<OozebotSortWrapper> nextTier;
         for (std::vector<OozebotSortWrapper>::iterator iter = this->generation.begin(); iter != this->generation.end(); iter++) {
@@ -129,6 +130,7 @@ void ParetoSelector::sort() {
                 nextTier.push_back(*iter);
             }
         }
+        printf("sort 2\n");
         std::sort(nextTier.begin(), nextTier.end(), sortFunction);
         for (auto iter = nextTier.begin(); iter != nextTier.end(); iter++) {
             for (auto it = (*iter).dominating.begin(); it != (*iter).dominating.end(); ++it) {
@@ -139,6 +141,7 @@ void ParetoSelector::sort() {
         workingVec.push_back(nextTier);
         numLeft -= nextTier.size();
     }
+    printf("sort 3\n");
     this->idToIndex.clear();
     std::vector<OozebotSortWrapper> nextGeneration;
     nextGeneration.reserve(this->generation.size());
