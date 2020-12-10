@@ -44,6 +44,7 @@ struct AsyncSimHandle {
   SpringDelta *ps_d;
   int numSprings;
   double length;
+  double duration; // It will run for slightly longer than requested to align to the same point in the frequency
   int device;
 };
 

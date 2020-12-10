@@ -21,8 +21,8 @@ private:
     std::vector<std::vector<int>> buckets;
     double lengthAdjBucketSize = 0.1;
     double fitnessBucketSize = 0.1;
-    double maxLengthAdj = 0;
-    double maxFitness = 0;
+    double maxLengthAdj = 0.01;
+    double maxFitness = 0.01;
     int lastResize = 10;
 
     void resize();

@@ -1,3 +1,5 @@
+#define _USE_MATH_DEFINES
+#include <cmath>
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -202,11 +204,17 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
         if (t < 1.0 && t + dt >= 1.0) {
             HANDLE_ERROR(cudaMemcpyAsync(&points[0], p_d, numPoints * sizeof(Point), cudaMemcpyDeviceToHost));
+            int numCycles = 1;
+            double oscillationDuration = 2 * M_PI / oscillationFrequency;
+            while ((oscillationDuration * numCycles + t) < n) {
+                numCycles += 1;
+            }
+            n = (oscillationDuration * numCycles) + t;
         }
         t += dt;
     }
 
-    return {points, p_d, s_d, ps_d, numSprings, length, deviceNumber};
+    return {points, p_d, s_d, ps_d, numSprings, length, t - 1.0, deviceNumber};
 }
 
 void synchronize(AsyncSimHandle &handle) {

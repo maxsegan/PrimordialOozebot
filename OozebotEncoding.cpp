@@ -154,7 +154,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 
     OozebotEncoding encoding;
     double r = randFloat(); // 0 to 1
-    encoding.globalTimeInterval = 0.5 + r * 9.5;
+    encoding.globalTimeInterval = 1.0 + r * 9.0;
     encoding.lengthAdj = 0;
     encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed);
     encoding.boxCommands = boxCommands;
@@ -243,7 +243,7 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     } else if (r < 8) {
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         double interval = encoding.globalTimeInterval + seed;
-        encoding.globalTimeInterval = std::min(std::max(interval, 0.5), 10.0);
+        encoding.globalTimeInterval = std::min(std::max(interval, 1.0), 10.0);
     } else if (r < 30) {
         int index = randomInRange(0, (int) (encoding.boxCommands.size() - 1));
         double seed = randFloat() - 0.5; // -0.5 to 0.5
@@ -344,7 +344,7 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     endZ = endZ / mass;
     const double deltaX = endX - startX;
     const double deltaZ = endZ - startZ;
-    double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
+    double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ) / handle.duration;
     return {fitness, fitness / std::max(1.5, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
 }
 
