@@ -15,9 +15,9 @@
 // TODO command line args
 // TODO air/water resistence
 
-std::pair<OozebotEncoding, AsyncSimHandle> gen(int i) {
+std::pair<OozebotEncoding, AsyncSimHandle> gen() {
     OozebotEncoding encoding = OozebotEncoding::randomEncoding();
-    AsyncSimHandle handle = OozebotEncoding::evaluate(encoding, i);
+    AsyncSimHandle handle = OozebotEncoding::evaluate(encoding, encoding.id);
     return {encoding, handle};
 }
 
@@ -44,9 +44,9 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFro
     const int asyncThreads = 35;
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
     for (int i = 0; i < asyncThreads; i++) {
-        threads[i] = std::async(&gen, i + 1);
+        threads[i] = std::async(&gen);
     }
-    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen(0);
+    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen();
     OozebotEncoding encoding = pair.first;
     AsyncSimHandle handle = pair.second;
     
@@ -63,7 +63,7 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFro
             encoding = pair.first;
             handle = pair.second;
             if (i < numEvaluations - asyncThreads) {
-                threads[j] = std::async(&gen, i + asyncThreads);
+                threads[j] = std::async(&gen);
             }
             j = (j + 1) % asyncThreads;
         }

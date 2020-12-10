@@ -164,6 +164,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     if (nDevices > 1) {
         deviceNumber = streamNum % nDevices;
         HANDLE_ERROR(cudaSetDevice(deviceNumber));
+        printf("Device %d\n", deviceNumber);
     }
 
     Point *p_d;
