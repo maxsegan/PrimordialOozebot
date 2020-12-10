@@ -52,7 +52,9 @@ std::pair<OozebotEncoding, AsyncSimHandle> gen(OozebotEncoding mom, OozebotEncod
 // depth parameter and is the number of decision variables, and
 // by updating the subspaces dynamically
 int ParetoSelector::selectAndMate() {
+    printf("abt to sort\n");
     this->sort();
+    printf("sorted\n");
 
     std::vector<OozebotEncoding> newGeneration = {
         this->generation[0].encoding,
