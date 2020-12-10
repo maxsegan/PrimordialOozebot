@@ -344,6 +344,7 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     endZ = endZ / mass;
     const double deltaX = endX - startX;
     const double deltaZ = endZ - startZ;
+    printf("Duration %f, deltax: %f\n", handle.duration, deltaX);
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ) / handle.duration;
     return {fitness, fitness / std::max(1.5, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
 }
