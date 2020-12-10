@@ -22,7 +22,7 @@ struct PendingSolution {
 
 class ParetoSelector {
 public:
-    ParetoFront globalParetoFront;
+    ParetoFront *globalParetoFront;
     const int generationSize;
     const double mutationProbability;
 

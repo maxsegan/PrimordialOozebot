@@ -52,9 +52,7 @@ std::pair<OozebotEncoding, AsyncSimHandle> gen(OozebotEncoding mom, OozebotEncod
 // depth parameter and is the number of decision variables, and
 // by updating the subspaces dynamically
 int ParetoSelector::selectAndMate() {
-    printf("abt to sort\n");
     this->sort();
-    printf("sorted\n");
 
     std::vector<OozebotEncoding> newGeneration = {
         this->generation[0].encoding,
@@ -89,7 +87,7 @@ int ParetoSelector::selectAndMate() {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
         encoding.lengthAdj = res.second;
-        this->globalParetoFront.evaluateEncoding(encoding);
+        this->globalParetoFront->evaluateEncoding(encoding);
         newGeneration.push_back(encoding);
 
         if (i < this->generationSize - 6) {
@@ -120,17 +118,15 @@ int ParetoSelector::selectAndMate() {
 void ParetoSelector::sort() {
     std::vector<std::vector<OozebotSortWrapper>> workingVec;
     int numLeft = (int) this->generation.size();
-    printf("sort 1\n");
     while (numLeft > 0) {
         std::vector<OozebotSortWrapper> nextTier;
         for (std::vector<OozebotSortWrapper>::iterator iter = this->generation.begin(); iter != this->generation.end(); iter++) {
             if ((*iter).dominationDegree == 0) {
                 (*iter).dominationDegree -= 1; // invalidates it for the rest of iterations
-                (*iter).novelty = this->globalParetoFront.noveltyDegreeForEncoding((*iter).encoding); // These get stale so must recompute
+                (*iter).novelty = this->globalParetoFront->noveltyDegreeForEncoding((*iter).encoding); // These get stale so must recompute
                 nextTier.push_back(*iter);
             }
         }
-        printf("sort 2\n");
         std::sort(nextTier.begin(), nextTier.end(), sortFunction);
         for (auto iter = nextTier.begin(); iter != nextTier.end(); iter++) {
             for (auto it = (*iter).dominating.begin(); it != (*iter).dominating.end(); ++it) {
@@ -141,7 +137,6 @@ void ParetoSelector::sort() {
         workingVec.push_back(nextTier);
         numLeft -= nextTier.size();
     }
-    printf("sort 3\n");
     this->idToIndex.clear();
     std::vector<OozebotSortWrapper> nextGeneration;
     nextGeneration.reserve(this->generation.size());

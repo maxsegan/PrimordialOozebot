@@ -21,18 +21,15 @@ std::pair<OozebotEncoding, AsyncSimHandle> gen(int i) {
     return {encoding, handle};
 }
 
-ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> &initialPop) {
+ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> &initialPop, ParetoFront &globalFront) {
     ParetoSelector generation(generationSize, mutationRate);
-    int i = 0;
+    generation.globalParetoFront = &globalFront;
     for (auto oozebot : initialPop) {
         generation.insertOozebot(oozebot);
-        generation.globalParetoFront.evaluateEncoding(oozebot);
-        printf("id %d %f\n", (int) oozebot.id, oozebot.fitness);
     }
 
     int evaluationNumber = 0;
     while (evaluationNumber < numEvaluations) {
-        printf("trying to select and mate\n");
         evaluationNumber += generation.selectAndMate();
         printf("Finished run #%d\n", evaluationNumber);
     }
@@ -40,8 +37,9 @@ ParetoSelector runGenerations(double mutationRate, int generationSize, int numEv
     return generation;
 }
 
-ParetoSelector runRandomSearch(int numEvaluations, int generationSize) {
+ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFront &globalFront) {
     ParetoSelector generation(generationSize, 0);
+    generation.globalParetoFront = &globalFront;
 
     const int asyncThreads = 35;
     std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
@@ -57,7 +55,7 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize) {
         auto res = OozebotEncoding::wait(handle);
         encoding.fitness = res.first;
         encoding.lengthAdj = res.second;
-        generation.globalParetoFront.evaluateEncoding(encoding);
+        globalFront.evaluateEncoding(encoding);
         generation.insertOozebot(encoding);
 
         if (i < numEvaluations - 1) {
@@ -69,20 +67,21 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize) {
             }
             j = (j + 1) % asyncThreads;
         }
-        if (i % generationSize == 0) {
+        if (i != 0 && i % generationSize == 0) {
             generation.sort();
+            printf("Finished run #%d\n", i);
         }
     }
     return generation;
 }
 
-ParetoSelector runRecursive(double mutationRate, int generationSize, int numEvaluations, int recursiveDepth) {
+ParetoSelector runRecursive(double mutationRate, int generationSize, int numEvaluations, int recursiveDepth, ParetoFront &globalFront) {
     if (recursiveDepth == 0) {
         printf("Kicking off random search\n");
-        return runRandomSearch(numEvaluations / 2, generationSize);
+        return runRandomSearch(numEvaluations / 2, generationSize, globalFront);
     }
-    ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1);
-    ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1);
+    ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront);
+    ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront);
     firstSelector.sort();
     secondSelector.sort();
     std::vector<OozebotEncoding> initialPop;
@@ -95,7 +94,7 @@ ParetoSelector runRecursive(double mutationRate, int generationSize, int numEval
     }
 
     printf("Kicking generation of depth %d\n", recursiveDepth);
-    return runGenerations(mutationRate, generationSize, numEvaluations, initialPop);
+    return runGenerations(mutationRate, generationSize, numEvaluations, initialPop, globalFront);
 }
 
 int main() {
@@ -108,11 +107,12 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    const int numEvaluationsPerGeneration = 30; // TODO take as a param
-    const int generationSize = 15; // TODO take as a param
+    const int numEvaluationsPerGeneration = 20000; // TODO take as a param
+    const int generationSize = 300; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
-    ParetoSelector generation = runRecursive(mutationRate, generationSize, numEvaluationsPerGeneration, 3);
+    ParetoFront globalFront;
+    ParetoSelector generation = runRecursive(mutationRate, generationSize, numEvaluationsPerGeneration, 4, globalFront);
 
     // Now we hillclimb the best solution(s)
     double bestFitness = 0;
