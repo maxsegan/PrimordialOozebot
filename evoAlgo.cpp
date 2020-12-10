@@ -26,6 +26,7 @@ ParetoSelector runGenerations(double mutationRate, int generationSize, int numEv
     int i = 0;
     for (auto oozebot : initialPop) {
         generation.insertOozebot(oozebot);
+        printf("id %d\n", (int) oozebot.id);
     }
 
     int evaluationNumber = 0;
