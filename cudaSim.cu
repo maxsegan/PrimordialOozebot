@@ -203,7 +203,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
         if (t < 1.0 && t + dt >= 1.0) {
-            HANDLE_ERROR(cudaMemcpy(&points[0], p_d, numPoints * sizeof(Point), cudaMemcpyHostToHost));
+            HANDLE_ERROR(cudaMemcpy(&points[0], p_d, numPoints * sizeof(Point), cudaMemcpyDeviceToHost));
             double mass = 0;
             for (auto point : points) {
                 double pm = point.mass;
@@ -222,7 +222,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
 
 void resolveAndKeepAlive(AsyncSimHandle &handle) {
     HANDLE_ERROR(cudaSetDevice(handle.device));
-    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyHostToHost));
+    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
 }
 
 void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency, int streamNum) {
@@ -257,7 +257,7 @@ void resolveSim(AsyncSimHandle &handle) {
         return;
     }
     HANDLE_ERROR(cudaSetDevice(handle.device));
-    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyHostToHost));
+    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
     
     HANDLE_ERROR(cudaFree(handle.p_d));
     HANDLE_ERROR(cudaFree(handle.s_d));
