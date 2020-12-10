@@ -325,15 +325,15 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
             printf("Solution has NaN or inf\n");
             return {0, 0};
         }
-        double pm = points[i].mass;
-        endX += points[i].x * pm;
-        endX += points[i].z * pm;
+        double pm = point.mass;
+        endX += point.x * pm;
+        endX += point.z * pm;
         mass += pm;
     }
     endX = endX / mass;
     endZ = endZ / mass;
-    const deltaX = endX - handle.startX;
-    const deltaZ = endZ - handle.startZ;
+    const double deltaX = endX - handle.startX;
+    const double deltaZ = endZ - handle.startZ;
     double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ);
     return {fitness, fitness / std::max(0.3, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
 }

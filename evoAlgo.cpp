@@ -30,7 +30,7 @@ ParetoSelector runGenerations(double mutationRate, int generationSize, int numEv
     int evaluationNumber = 0;
     while (evaluationNumber < numEvaluations) {
         evaluationNumber += generation.selectAndMate();
-        printf("Finished run #%d for eval %s\n", evaluationNumber);
+        printf("Finished run #%d\n", evaluationNumber);
     }
 
     return generation;
@@ -75,18 +75,18 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize) {
 ParetoSelector runRecursive(double mutationRate, int generationSize, int numEvaluations, int recursiveDepth) {
     if (recursiveDepth == 0) {
         printf("Kicking off random search\n");
-        return runRandomSearch(numEvaluations / 2, generationSize)
+        return runRandomSearch(numEvaluations / 2, generationSize);
     }
-    ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth);
-    ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth);
+    ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1);
+    ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1);
     firstSelector.sort();
     secondSelector.sort();
     std::vector<OozebotEncoding> initialPop;
     for (int i = 0; i < generationSize; i++) {
         if (i < generationSize / 2) {
-            initialPop.push_back(firstSelector.generation[i]);
+            initialPop.push_back(firstSelector.generation[i].encoding);
         } else {
-            initialPop.push_back(secondSelector.generation[i - generationSize / 2]);
+            initialPop.push_back(secondSelector.generation[i - generationSize / 2].encoding);
         }
     }
 
@@ -104,18 +104,18 @@ int main() {
 
     srand((unsigned int) time(NULL));
 
-    const int numEvaluationsPerGeneration = 20000; // TODO take as a param
-    const int generationSize = 300; // TODO take as a param
+    const int numEvaluationsPerGeneration = 200; // TODO take as a param
+    const int generationSize = 30; // TODO take as a param
     double mutationRate = 0.05; // TODO take as a param
 
-    ParetoSelector generation = runRecursive(mutationRate, generationSize, int numEvaluationsPerGeneration, int 4);
+    ParetoSelector generation = runRecursive(mutationRate, generationSize, numEvaluationsPerGeneration, 4);
 
     // Now we hillclimb the best solution(s)
     double bestFitness = 0;
     double secondBestFitness = 0;
     int bestIndex = 0;
     int secondBestIndex = 0;
-    for (int i = 0; i < minNumSolutions; i++) {
+    for (int i = 0; i < generationSize; i++) {
         double fitness = generation.generation[i].encoding.fitness;
         if (fitness > bestFitness) {
             secondBestFitness = bestFitness;
@@ -130,7 +130,7 @@ int main() {
     OozebotEncoding encoding1 = generation.generation[bestIndex].encoding;
     OozebotEncoding encoding2 = generation.generation[secondBestIndex].encoding;
     int iterSinceImprovement = 0;
-    unsigned long int nextID = numEvaluations;
+    unsigned long int nextID = OozebotEncoding::randomEncoding().id;
     while (iterSinceImprovement < 500) {
         OozebotEncoding newEncoding1 = mutate(encoding1);
         OozebotEncoding newEncoding2 = mutate(encoding2);
