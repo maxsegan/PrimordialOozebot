@@ -210,6 +210,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
                 numCycles += 1;
             }
             n = (oscillationDuration * numCycles) + t;
+            printf("Duration %f, cycle %f cycle duration %f n: %f\n", n, oscillationFrequency, oscillationDuration, n);
         }
         t += dt;
     }
