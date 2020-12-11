@@ -46,6 +46,8 @@ __global__ void update_spring(
     if (i >= n) return;
 
     Spring s = springs[i];
+    if (s.broken) return;
+
     Point p1 = points[s.p1];
     Point p2 = points[s.p2];
 
@@ -54,6 +56,11 @@ __global__ void update_spring(
     float dz = p1.z - p2.z;
 
     float dist = sqrt(dx * dx + dy * dy + dz * dz);
+    if (dist > (s.l0 * 10)) {
+        printf("Spring broken with dist %f\n", dist/s.l0);
+        s.broken = true;
+        return;
+    }
 
     // negative if repelling, positive if attracting
     float adjust;
@@ -197,7 +204,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
             const float a = presets[i].a;
             const float b = presets[i].b;
             const float c = presets[i].c; 
-            pv[i] = a + b * sin(t * oscillationFrequency);
+            pv[i] = a * (1 + b * sin(t * oscillationFrequency));
         }
         update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
         update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);

@@ -23,6 +23,7 @@ struct Spring {
   int p1SpringIndex; // Filled in externally - these just must be incremental and different for each point
   int p2SpringIndex;
   const int flexIndex;
+  bool broken = false;
 };
 
 struct FlexPreset {
