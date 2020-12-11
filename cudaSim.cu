@@ -162,7 +162,7 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
     int deviceNumber = 0;
     HANDLE_ERROR(cudaGetDeviceCount(&nDevices));
     if (nDevices > 1) {
-        deviceNumber = 0;//streamNum % nDevices;
+        deviceNumber = streamNum % nDevices;
         HANDLE_ERROR(cudaSetDevice(deviceNumber));
     }
 
