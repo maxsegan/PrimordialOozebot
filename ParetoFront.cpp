@@ -95,14 +95,14 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
 
     if (encoding.lengthAdj > this->maxLengthAdj) {
         this->maxLengthAdj = encoding.lengthAdj;
-        while (lengthAdjBucket >= buckets.size()) {
-            buckets.push_back({});
-        }
     }
     if (encoding.fitness > this->maxFitness) {
         this->maxFitness = encoding.fitness;
     }
     
+    while (lengthAdjBucket >= buckets.size()) {
+        buckets.push_back({});
+    }
     int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
     while (fitnessBucket >= this->buckets[lengthAdjBucket].size()) {
         this->buckets[lengthAdjBucket].push_back(0);
