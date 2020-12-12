@@ -41,27 +41,32 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFro
     generation.globalParetoFront = &globalFront;
 
     std::future<std::pair<OozebotEncoding, SimInputs>> threads[NUM_THREADS];
+    std::pair<OozebotEncoding, SimInputs> pairs[NUM_THREADS];
 
     for (int i = 0; i < NUM_THREADS; i++) {
         threads[i] = std::async(&gen);
     }
-    auto pair = threads[0].get();
-    OozebotEncoding::evaluate(pair.second, pair.first, handles[0]);
-    threads[0] = std::async(&gen);
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pairs[i] = threads[i].get();
+        OozebotEncoding::evaluate(pairs[i].second, pairs[i].first, handles[i]);
+        threads[i] = std::async(&gen);
+    }
     
     int j = 0;
     for (int i = 0; i < numEvaluations; i++) {
         auto res = OozebotEncoding::wait(handles[i % NUM_THREADS]);
-        pair.first.fitness = res.first;
-        pair.first.lengthAdj = res.second;
-        globalFront.evaluateEncoding(pair.first);
-        generation.insertOozebot(pair.first);
+        pairs[i].first.fitness = res.first;
+        pairs[i].first.lengthAdj = res.second;
+        globalFront.evaluateEncoding(pairs[i].first);
+        generation.insertOozebot(pairs[i].first);
 
         if (i < numEvaluations - 1) {
             j = (j + 1) % NUM_THREADS;
-            pair = threads[j].get();
-            OozebotEncoding::evaluate(pair.second, pair.first, handles[j]);
             if (i < numEvaluations - NUM_THREADS) {
+                pairs[i] = threads[j].get();
+                OozebotEncoding::evaluate(pairs[i].second, pairs[i].first, handles[j]);
+            }
+            if (i < numEvaluations - 2 * NUM_THREADS) {
                 threads[j] = std::async(&gen);
             }
         }

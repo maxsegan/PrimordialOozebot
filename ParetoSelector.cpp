@@ -62,7 +62,19 @@ int ParetoSelector::selectAndMate(std::vector<AsyncSimHandle> &handles) {
     };
 
     std::future<std::pair<OozebotEncoding, SimInputs>> threads[NUM_THREADS];
+    std::pair<OozebotEncoding, SimInputs> pairs[NUM_THREADS];
+
     for (int i = 0; i < NUM_THREADS; i++) {
+        int k = this->selectionIndex();
+        int l = this->selectionIndex();
+        while (k == l) {
+            l = this->selectionIndex();
+        }
+        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
+    }
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pairs[i] = threads[i].get();
+        OozebotEncoding::evaluate(pairs[i].second, pairs[i].first, handles[i]);
         int k = this->selectionIndex();
         int l = this->selectionIndex();
         while (k == l) {
@@ -82,17 +94,15 @@ int ParetoSelector::selectAndMate(std::vector<AsyncSimHandle> &handles) {
     int j = 0;
     for (int i = 0; i < this->generationSize - 5; i++) {
         auto res = OozebotEncoding::wait(handles[i % NUM_THREADS]);
-        pair.first.fitness = res.first;
-        pair.first.lengthAdj = res.second;
-        this->globalParetoFront->evaluateEncoding(pair.first);
-        newGeneration.push_back(pair.first);
+        pairs[i].first.fitness = res.first;
+        pairs[i].first.lengthAdj = res.second;
+        this->globalParetoFront->evaluateEncoding(pairs[i].first);
+        newGeneration.push_back(pairs[i].first);
 
         if (i < this->generationSize - 6) {
             j = (j + 1) % NUM_THREADS;
-            pair = threads[j].get();
-            OozebotEncoding::evaluate(pair.second, pair.first, handles[j]);
             
-            if (i < this->generationSize - 5 - NUM_THREADS) {
+            if (i < this->generationSize - 5 - 2 * NUM_THREADS) {
                 k = this->selectionIndex();
                 l = this->selectionIndex();
                 while (k == l) {
