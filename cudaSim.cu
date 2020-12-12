@@ -164,7 +164,7 @@ AsyncSimHandle createSimHandle(int i) {
     
     HANDLE_ERROR(cudaGetDeviceCount(&nDevices));
     if (nDevices > 1) {
-        deviceNumber = i % nDevices;
+    //    deviceNumber = i % nDevices;
         HANDLE_ERROR(cudaSetDevice(deviceNumber));
     }
 
@@ -276,7 +276,7 @@ void synchronize(AsyncSimHandle &handle) {
     HANDLE_ERROR(cudaSetDevice(handle.device));
     HANDLE_ERROR(cudaStreamSynchronize(handle.stream));
     if ((*(handle.invalid_h)) != 0) {
-        printf("Invalidated sim %d\n", *handle.invalid_h);
+        printf("Invalidated sim\n");
         handle.duration = std::numeric_limits<double>::infinity();
     }
 }

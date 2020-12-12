@@ -6,7 +6,7 @@
 #include "OozebotEncoding.h"
 #include "ParetoFront.h"
 
-const int NUM_THREADS = 150;
+const int NUM_THREADS = 35;
 
 // Indices don't work bc we sort... need to ID these and do indices just at sort time - otherwise track IDs
 struct OozebotSortWrapper {
