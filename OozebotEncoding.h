@@ -63,13 +63,13 @@ public:
     double globalTimeInterval; // 1 - 10
     unsigned long int id;
 
-    static OozebotEncoding mate(OozebotEncoding parent1, OozebotEncoding parent2);
+    static OozebotEncoding mate(OozebotEncoding &parent1, OozebotEncoding &parent2);
 
-    static SimInputs inputsFromEncoding(OozebotEncoding encoding);
+    static SimInputs inputsFromEncoding(OozebotEncoding &encoding);
 
-    // Wait to get the fitness value - must call exactly once!
-    static AsyncSimHandle evaluate(OozebotEncoding encoding, int streamNum);
-    static std::pair<double, double> wait(AsyncSimHandle handle);
+    // Sync on the handle to get the result
+    static void evaluate(SimInputs &inputs, OozebotEncoding &encoding, AsyncSimHandle &handle);
+    static std::pair<double, double> wait(AsyncSimHandle &handle);
 
     static OozebotEncoding randomEncoding();
 

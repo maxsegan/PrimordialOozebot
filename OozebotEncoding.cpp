@@ -20,7 +20,7 @@ const int kMaxRadius = 8;
 
 std::atomic<unsigned long int> GlobalId(1);
 
-bool springSortFunction(OozebotExpression a, OozebotExpression b) {
+bool springSortFunction(OozebotExpression &a, OozebotExpression &b) {
     return (a.b > b.b);
 }
 
@@ -46,7 +46,7 @@ struct Coordinate
     #define thread_local __thread
 #endif
 
-int randomInRange(const int & min, const int & max) {
+int randomInRange(const int &min, const int &max) {
     static thread_local std::mt19937 generator = std::mt19937(clock() + std::hash<std::thread::id>()(std::this_thread::get_id()));
     std::uniform_int_distribution<int> distribution(min, max);
     return distribution(generator);
@@ -165,7 +165,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 }
 
 // Maybe change linkage in the future - could not split at mid or tie boxes to lay and move sequences
-OozebotEncoding OozebotEncoding::mate(OozebotEncoding parent1, OozebotEncoding parent2) {
+OozebotEncoding OozebotEncoding::mate(OozebotEncoding &parent1, OozebotEncoding &parent2) {
     OozebotEncoding child;
     child.boxCommands = {};
     int boxSplitI = randomInRange(0, kNumBoxes - 1);
@@ -302,21 +302,18 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     return encoding;
 }
 
-AsyncSimHandle OozebotEncoding::evaluate(OozebotEncoding encoding, int streamNum) {
-    SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
-    if (inputs.points.size() == 0) {
-        return { {}, NULL, NULL, NULL};
-    }
-   
-    return simulate(inputs.points, inputs.springs, inputs.springPresets, 6.0, encoding.globalTimeInterval, streamNum, inputs.length);
+void OozebotEncoding::evaluate(SimInputs &inputs, OozebotEncoding &encoding, AsyncSimHandle &handle) {
+    handle.length = inputs.length;
+    simulate(handle, inputs.points, inputs.springs, inputs.springPresets, 6.0, encoding.globalTimeInterval);
 }
 
-std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
+std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle &handle) {
     synchronize(handle);
     double mass = 0;
     double startX = 0;
     double startZ = 0;
-    for (auto point : handle.points) {
+    for (int i = 0; i < handle.numPoints; i++) {
+        Point point = handle.startPoints[i];
         double pm = point.mass;
         startX += point.x * pm;
         startZ += point.z * pm;
@@ -324,14 +321,13 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle handle) {
     }
     startX = (startX / mass);
     startZ = (startZ / mass);
-    resolveSim(handle);
-    if (handle.points.size() == 0) {
-        printf("failure\n");
+    if (isinf(handle.duration) || mass == 0) {
         return {0, 0};
     }
     double endX = 0;
     double endZ = 0;
-    for (const auto point : handle.points) {
+    for (int i = 0; i < handle.numPoints; i++) {
+        Point point = handle.endPoints[i];
         if (isnan(point.x) || isinf(point.x) || isnan(point.z) || isinf(point.z)) {
             printf("Solution has NaN or inf\n");
             return {0, 0};
@@ -589,7 +585,7 @@ int processExtremityWithAnchor(
         invertZ);
 }
 
-SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding encoding) {
+SimInputs OozebotEncoding::inputsFromEncoding(OozebotEncoding &encoding) {
     std::vector<Point> points;
     std::vector<Spring> springs;
     std::vector<FlexPreset> presets;

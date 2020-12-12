@@ -12,7 +12,7 @@
 #include "ParetoFront.h"
 #include "cudaSim.h"
 
-void logEncoding(OozebotEncoding encoding) {
+void logEncoding(OozebotEncoding &encoding, AsyncSimHandle &handle) {
     printf("New encoding on pareto front: %d with fitness: %f length adj: %f\n", encoding.id, encoding.fitness, encoding.lengthAdj);
     std::map<int, int> exteriorPoints = {};
     // We now log this to report - should this be here? Maybe not, but the async is annoying.
@@ -54,33 +54,29 @@ void logEncoding(OozebotEncoding encoding) {
     myfile << "\"simulation\" : [\n";
     double t = 0;
     double dt = 1.0 / 24.0; // 24fps
-    AsyncSimHandle handle = {inputs.points, NULL, NULL, NULL, 0, 0, 0};
+    simulate(handle, inputs.points, inputs.springs, inputs.springPresets, 0, encoding.globalTimeInterval); // 0s to just capture initial conditions
+    synchronize(handle);
     double simDuration = 30.0;
     while (t < simDuration) {
         myfile << "[\n";
         first = true;
-        for (auto it = handle.points.begin(); it != handle.points.end(); ++it) {
-            int i = (int) (it - handle.points.begin());
+        for (int i = 0; i < handle.numPoints; i++) {
             if (exteriorPoints.find(i) == exteriorPoints.end()) {
                 continue;
             }
             if (!first) {
                 myfile << ",";
             }
+            Point p = handle.endPoints[i];
             first = false;
-            myfile << "[ " + std::to_string((*it).x) + ", " + std::to_string((*it).z) + ", " + std::to_string((*it).y) + "]";
+            myfile << "[ " + std::to_string(p.x) + ", " + std::to_string(p.z) + ", " + std::to_string(p.y) + "]";
         }
         if (t + dt >= simDuration) {
             myfile << "]\n";
-            resolveSim(handle);
         } else {
             myfile << "],\n";
-            if (t == 0) {
-                handle = simulate(handle.points, inputs.springs, inputs.springPresets, dt, encoding.globalTimeInterval, (int) encoding.id, 1.0);
-            } else {
-                simulateAgain(handle, inputs.springPresets, t, t + dt, encoding.globalTimeInterval, (int) encoding.id);
-            }
-            resolveAndKeepAlive(handle);
+            simulateAgain(handle, inputs.springPresets, t, t + dt, encoding.globalTimeInterval);
+            synchronize(handle);
         }
         t += dt;
     }
@@ -127,7 +123,7 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
 
     this->encodingFront.push_back(encoding);
 
-    std::thread(logEncoding, encoding).detach();
+    std::thread(logEncoding, encoding, this->loggingHandle).detach();
 
     return true;
 }
@@ -159,4 +155,8 @@ double ParetoFront::noveltyDegreeForEncoding(OozebotEncoding encoding) {
     int lengthAdjBucket = round(encoding.lengthAdj / this->lengthAdjBucketSize);
     int fitnessBucket = round(encoding.fitness / this->fitnessBucketSize);
     return (double) 1 / this->buckets[lengthAdjBucket][fitnessBucket];  
+}
+
+ParetoFront::~ParetoFront() {
+    releaseSimHandle(this->loggingHandle);
 }

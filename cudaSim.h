@@ -2,6 +2,7 @@
 #define CUDA_SIM
 
 #include <vector>
+#include <cuda_runtime.h>
 
 struct Point {
   float x; // meters
@@ -23,7 +24,6 @@ struct Spring {
   int p1SpringIndex; // Filled in externally - these just must be incremental and different for each point
   int p2SpringIndex;
   const int flexIndex;
-  bool broken = false;
 };
 
 struct FlexPreset {
@@ -39,26 +39,35 @@ struct SpringDelta {
 };
 
 struct AsyncSimHandle {
-  std::vector<Point> points;
+  Point *endPoints;
+  Point *startPoints;
+  int numPoints;
   Point *p_d;
+  int pointsLength;
   Spring *s_d;
+  int springsLength;
   SpringDelta *ps_d;
+  int springDeltaLength;
+  int *b_d;
+  int *invalid_h;
   int numSprings;
   double length;
   double duration; // It will run for slightly longer than requested to align to the same point in the frequency
   int device;
+  cudaStream_t stream;
 };
 
-// Updates the x, y, and z values of the points after running a simulation for n seconds
-AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum, double length);
+AsyncSimHandle createSimHandle(int i);
 
-// Ensure that we write stable initial condition to "points"
+void releaseSimHandle(AsyncSimHandle &handle);
+
+// Updates the x, y, and z values of the points after running a simulation for n seconds
+void simulate(AsyncSimHandle &handle, std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency);
+
+// wait on handle to finish current sim
 void synchronize(AsyncSimHandle &handle);
 
-void resolveAndKeepAlive(AsyncSimHandle &handle);
-
-void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency, int streamNum);
-
-void resolveSim(AsyncSimHandle &handle);
+// Continue it's current simulation
+void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency);
 
 #endif

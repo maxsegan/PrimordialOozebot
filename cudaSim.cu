@@ -7,7 +7,7 @@
 #include <vector>
 #include <map>
 #include <chrono>
-#include <cuda_runtime.h>
+#include <limits>
 
 #include "cudaSim.h"
 
@@ -36,6 +36,7 @@ __global__ void update_spring(
     Spring *springs,
     SpringDelta *springDeltas,
     int n,
+    int *invalid,
     double preset0,
     double preset1,
     double preset2,
@@ -46,7 +47,6 @@ __global__ void update_spring(
     if (i >= n) return;
 
     Spring s = springs[i];
-    if (s.broken) return;
 
     Point p1 = points[s.p1];
     Point p2 = points[s.p2];
@@ -56,9 +56,8 @@ __global__ void update_spring(
     float dz = p1.z - p2.z;
 
     float dist = sqrt(dx * dx + dy * dy + dz * dz);
-    if (dist > (s.l0 * 10)) {
-        printf("Spring broken with dist %f\n", dist/s.l0);
-        s.broken = true;
+    if (dist > (s.l0 * 6)) {
+        bool firstInvalidation = atomicCAS(invalid, 0, 1);
         return;
     }
 
@@ -153,37 +152,80 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
     points[i] = p;
 }
 
-AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency, int streamNum, double length) {
-    if (points.size() == 0) {
-        printf("No points, early ejecting from sim\n");
-        return { {}, NULL, NULL, NULL};
+AsyncSimHandle createSimHandle(int i) {
+    Point *p_d;
+    Spring *s_d;
+    SpringDelta *ps_d;
+    int *b_d;
+    cudaStream_t stream;
+
+    int nDevices;
+    int deviceNumber = 0;
+    
+    HANDLE_ERROR(cudaGetDeviceCount(&nDevices));
+    if (nDevices > 1) {
+        deviceNumber = i % nDevices;
+        HANDLE_ERROR(cudaSetDevice(deviceNumber));
     }
-    std::vector<SpringDelta> pointSprings(springs.size() * 2, {0,0,0});
+
+    HANDLE_ERROR(cudaStreamCreate(&stream));
+    int *invalid_h;
+    Point *start_p;
+    Point *end_p;
+
+    int numPoints = 50000;
+    int numSprings = 1000000;
+    int numSpringDeltas = 2 * numSprings;
+
+    HANDLE_ERROR(cudaMalloc(&p_d, numPoints * sizeof(Point)));
+    HANDLE_ERROR(cudaMalloc(&s_d, numSprings * sizeof(Spring)));
+    HANDLE_ERROR(cudaMalloc(&ps_d, numSpringDeltas * sizeof(SpringDelta)));
+    HANDLE_ERROR(cudaMalloc(&b_d, sizeof(int)));
+
+    HANDLE_ERROR(cudaMallocHost(&invalid_h, sizeof(int)));
+    HANDLE_ERROR(cudaMallocHost(&start_p, numPoints * sizeof(Point)));
+    HANDLE_ERROR(cudaMallocHost(&end_p, numPoints * sizeof(Point)));
+
+    return {end_p, start_p, 0, p_d, numPoints, s_d, numSprings, ps_d, numSpringDeltas, b_d, invalid_h, 0, 0, 0, deviceNumber, stream};
+}
+
+void releaseSimHandle(AsyncSimHandle &handle) {
+    HANDLE_ERROR(cudaFree(handle.p_d));
+    HANDLE_ERROR(cudaFree(handle.s_d));
+    HANDLE_ERROR(cudaFree(handle.ps_d));
+    HANDLE_ERROR(cudaFree(handle.b_d));
+    HANDLE_ERROR(cudaFree(handle.invalid_h));
+    HANDLE_ERROR(cudaStreamDestroy(handle.stream));
+}
+
+void simulate(AsyncSimHandle &handle, std::vector<Point> &points, std::vector<Spring> &springs, std::vector<FlexPreset> &presets, double n, double oscillationFrequency) {
+    std::vector<SpringDelta> pointSprings(springs.size() * 2, {0, 0, 0});
     int springDeltaIndex  = 0;
     for (int i = 0; i < points.size(); i++) {
         points[i].springDeltaIndex = springDeltaIndex;
         springDeltaIndex += points[i].numSprings;
     }
+    HANDLE_ERROR(cudaSetDevice(handle.device));
 
-    int nDevices;
-    int deviceNumber = 0;
-    HANDLE_ERROR(cudaGetDeviceCount(&nDevices));
-    if (nDevices > 1) {
-        deviceNumber = streamNum % nDevices;
-        HANDLE_ERROR(cudaSetDevice(deviceNumber));
+    if (points.size() > handle.pointsLength) {
+        printf("Resizing points\n");
+        handle.pointsLength = points.size() * 2;
+        HANDLE_ERROR(cudaFree(handle.p_d));
+        HANDLE_ERROR(cudaFree(handle.startPoints));
+        HANDLE_ERROR(cudaFree(handle.endPoints));
+        HANDLE_ERROR(cudaMalloc(&handle.p_d, 2 * points.size() * sizeof(Point)));
+        HANDLE_ERROR(cudaMallocHost(&handle.startPoints, 2 * points.size() * sizeof(Point)));
+        HANDLE_ERROR(cudaMallocHost(&handle.endPoints, 2 * points.size() * sizeof(Point)));
     }
-
-    Point *p_d;
-    Spring *s_d;
-    SpringDelta *ps_d;
-    HANDLE_ERROR(cudaMalloc(&p_d, points.size() * sizeof(Point)));
-    HANDLE_ERROR(cudaMemcpy(p_d, &points[0], points.size() * sizeof(Point), cudaMemcpyHostToDevice));
-
-    HANDLE_ERROR(cudaMalloc(&s_d, springs.size() * sizeof(Spring)));
-    HANDLE_ERROR(cudaMemcpy(s_d, &springs[0], springs.size() * sizeof(Spring), cudaMemcpyHostToDevice));
-
-    HANDLE_ERROR(cudaMalloc(&ps_d, pointSprings.size() * sizeof(SpringDelta)));
-    HANDLE_ERROR(cudaMemcpy(ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaMemcpyHostToDevice));
+    if (springs.size() > handle.springsLength) {
+        printf("Resizing springs\n");
+        handle.springsLength = springs.size() * 2;
+        handle.springDeltaLength = pointSprings.size() * 2;
+        HANDLE_ERROR(cudaFree(handle.s_d));
+        HANDLE_ERROR(cudaFree(handle.ps_d));
+        HANDLE_ERROR(cudaMalloc(&handle.s_d, 2 * springs.size() * sizeof(Spring)));
+        HANDLE_ERROR(cudaMalloc(&handle.ps_d, 2 * pointSprings.size() * sizeof(SpringDelta)));
+    }
 
     double t = 0;
     int numPoints = points.size();
@@ -199,6 +241,11 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         pv.push_back(0.0);
     }
 
+    HANDLE_ERROR(cudaMemcpyAsync(handle.p_d, &points[0], numPoints * sizeof(Point), cudaMemcpyHostToDevice, handle.stream));
+    HANDLE_ERROR(cudaMemcpyAsync(handle.s_d, &springs[0], numSprings * sizeof(Spring), cudaMemcpyHostToDevice, handle.stream));
+    HANDLE_ERROR(cudaMemcpyAsync(handle.ps_d, &pointSprings[0], pointSprings.size() * sizeof(SpringDelta), cudaMemcpyHostToDevice, handle.stream));
+    HANDLE_ERROR(cudaMemsetAsync(handle.b_d, 0, sizeof(int), handle.stream));
+
     while (t < n) {
         for (int i = 0; i < pv.size(); i++) {
             const float a = presets[i].a;
@@ -206,10 +253,10 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
             const float c = presets[i].c; 
             pv[i] = a * (1 + b * sin(t * oscillationFrequency));
         }
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(p_d, s_d, ps_d, numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
-        update_point<<<numPointBlocks, numPointThreads>>>(p_d, ps_d, numPoints);
+        update_spring<<<numSpringBlocks, numSpringThreads, 0, handle.stream>>>(handle.p_d, handle.s_d, handle.ps_d, numSprings, handle.b_d, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
+        update_point<<<numPointBlocks, numPointThreads, 0, handle.stream>>>(handle.p_d, handle.ps_d, numPoints);
         if (t < 1.0 && t + dt >= 1.0) {
-            HANDLE_ERROR(cudaMemcpyAsync(&points[0], p_d, numPoints * sizeof(Point), cudaMemcpyDeviceToHost));
+            HANDLE_ERROR(cudaMemcpyAsync(handle.startPoints, handle.p_d, numPoints * sizeof(Point), cudaMemcpyDeviceToHost, handle.stream));
             int numCycles = 1;
             double oscillationDuration = 2 * M_PI / oscillationFrequency;
             while ((oscillationDuration * numCycles + t) < n) {
@@ -219,22 +266,23 @@ AsyncSimHandle simulate(std::vector<Point> &points, std::vector<Spring> &springs
         }
         t += dt;
     }
-
-    return {points, p_d, s_d, ps_d, numSprings, length, t - 1.0, deviceNumber};
+    handle.duration = t - 1.0;
+    handle.numPoints = numPoints;
+    HANDLE_ERROR(cudaMemcpyAsync(handle.endPoints, handle.p_d, numPoints * sizeof(Point), cudaMemcpyDeviceToHost, handle.stream));
+    HANDLE_ERROR(cudaMemcpyAsync(handle.invalid_h, handle.b_d, sizeof(int), cudaMemcpyDeviceToHost, handle.stream));
 }
 
 void synchronize(AsyncSimHandle &handle) {
     HANDLE_ERROR(cudaSetDevice(handle.device));
-    cudaDeviceSynchronize();
+    HANDLE_ERROR(cudaStreamSynchronize(handle.stream));
+    if ((*(handle.invalid_h)) != 0) {
+        printf("Invalidated sim %d\n", *handle.invalid_h);
+        handle.duration = std::numeric_limits<double>::infinity();
+    }
 }
 
-void resolveAndKeepAlive(AsyncSimHandle &handle) {
-    HANDLE_ERROR(cudaSetDevice(handle.device));
-    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
-}
-
-void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency, int streamNum) {
-    int numPoints = handle.points.size();
+void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency) {
+    int numPoints = handle.numPoints;
     int numPointThreads = 12;
     int numPointBlocks = numPoints / numPointThreads + 1;
   
@@ -254,20 +302,8 @@ void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, dou
             const float c = presets[i].c; 
             pv[i] = a + b * sin(t * oscillationFrequency);
         }
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(handle.p_d, handle.s_d, handle.ps_d, handle.numSprings, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
-        update_point<<<numPointBlocks, numPointThreads>>>(handle.p_d, handle.ps_d, numPoints);
+        update_spring<<<numSpringBlocks, numSpringThreads, 0, handle.stream>>>(handle.p_d, handle.s_d, handle.ps_d, handle.numSprings, handle.b_d, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
+        update_point<<<numPointBlocks, numPointThreads, 0, handle.stream>>>(handle.p_d, handle.ps_d, numPoints);
         t += dt;
     }
-}
-
-void resolveSim(AsyncSimHandle &handle) {
-    if (handle.points.size() == 0) {
-        return;
-    }
-    HANDLE_ERROR(cudaSetDevice(handle.device));
-    HANDLE_ERROR(cudaMemcpy(&handle.points[0], handle.p_d, handle.points.size() * sizeof(Point), cudaMemcpyDeviceToHost));
-    
-    HANDLE_ERROR(cudaFree(handle.p_d));
-    HANDLE_ERROR(cudaFree(handle.s_d));
-    HANDLE_ERROR(cudaFree(handle.ps_d));
 }

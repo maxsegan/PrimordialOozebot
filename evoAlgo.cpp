@@ -15,13 +15,12 @@
 // TODO command line args
 // TODO air/water resistence
 
-std::pair<OozebotEncoding, AsyncSimHandle> gen() {
+std::pair<OozebotEncoding, SimInputs> gen() {
     OozebotEncoding encoding = OozebotEncoding::randomEncoding();
-    AsyncSimHandle handle = OozebotEncoding::evaluate(encoding, encoding.id);
-    return {encoding, handle};
+    return {encoding, OozebotEncoding::inputsFromEncoding(encoding)};
 }
 
-ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> &initialPop, ParetoFront &globalFront) {
+ParetoSelector runGenerations(double mutationRate, int generationSize, int numEvaluations, std::vector<OozebotEncoding> &initialPop, ParetoFront &globalFront, std::vector<AsyncSimHandle> &handles) {
     ParetoSelector generation(generationSize, mutationRate);
     generation.globalParetoFront = &globalFront;
     for (auto oozebot : initialPop) {
@@ -30,42 +29,41 @@ ParetoSelector runGenerations(double mutationRate, int generationSize, int numEv
 
     int evaluationNumber = 0;
     while (evaluationNumber < numEvaluations) {
-        evaluationNumber += generation.selectAndMate();
+        evaluationNumber += generation.selectAndMate(handles);
         printf("Finished run #%d\n", evaluationNumber);
     }
 
     return generation;
 }
 
-ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFront &globalFront) {
+ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFront &globalFront, std::vector<AsyncSimHandle> &handles) {
     ParetoSelector generation(generationSize, 0);
     generation.globalParetoFront = &globalFront;
 
-    const int asyncThreads = 35;
-    std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
-    for (int i = 0; i < asyncThreads; i++) {
+    std::future<std::pair<OozebotEncoding, SimInputs>> threads[NUM_THREADS];
+
+    for (int i = 0; i < NUM_THREADS; i++) {
         threads[i] = std::async(&gen);
     }
-    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen();
-    OozebotEncoding encoding = pair.first;
-    AsyncSimHandle handle = pair.second;
+    auto pair = threads[0].get();
+    OozebotEncoding::evaluate(pair.second, pair.first, handles[0]);
+    threads[0] = std::async(&gen);
     
     int j = 0;
     for (int i = 0; i < numEvaluations; i++) {
-        auto res = OozebotEncoding::wait(handle);
-        encoding.fitness = res.first;
-        encoding.lengthAdj = res.second;
-        globalFront.evaluateEncoding(encoding);
-        generation.insertOozebot(encoding);
+        auto res = OozebotEncoding::wait(handles[i % NUM_THREADS]);
+        pair.first.fitness = res.first;
+        pair.first.lengthAdj = res.second;
+        globalFront.evaluateEncoding(pair.first);
+        generation.insertOozebot(pair.first);
 
         if (i < numEvaluations - 1) {
+            j = (j + 1) % NUM_THREADS;
             pair = threads[j].get();
-            encoding = pair.first;
-            handle = pair.second;
-            if (i < numEvaluations - asyncThreads) {
+            OozebotEncoding::evaluate(pair.second, pair.first, handles[j]);
+            if (i < numEvaluations - NUM_THREADS) {
                 threads[j] = std::async(&gen);
             }
-            j = (j + 1) % asyncThreads;
         }
         if (i != 0 && i % generationSize == 0) {
             printf("Finished run #%d\n", i);
@@ -75,13 +73,13 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFro
     return generation;
 }
 
-ParetoSelector runRecursive(double mutationRate, int generationSize, int numEvaluations, int recursiveDepth, ParetoFront &globalFront) {
+ParetoSelector runRecursive(double mutationRate, int generationSize, int numEvaluations, int recursiveDepth, ParetoFront &globalFront, std::vector<AsyncSimHandle> &handles) {
     if (recursiveDepth == 0) {
         printf("Kicking off random search\n");
-        return runRandomSearch(numEvaluations / 10, generationSize / 2, globalFront);
+        return runRandomSearch(numEvaluations / 10, generationSize / 2, globalFront, handles);
     }
-    ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront);
-    ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront);
+    ParetoSelector firstSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront, handles);
+    ParetoSelector secondSelector = runRecursive(mutationRate, generationSize, numEvaluations, recursiveDepth - 1, globalFront, handles);
     firstSelector.sort();
     secondSelector.sort();
     std::vector<OozebotEncoding> initialPop;
@@ -93,12 +91,11 @@ ParetoSelector runRecursive(double mutationRate, int generationSize, int numEval
         }
     }
 
-    printf("Kicking generation of depth %d\n", recursiveDepth);
-    return runGenerations(mutationRate, generationSize, numEvaluations, initialPop, globalFront);
+    printf("Kicking off generation of depth %d\n", recursiveDepth);
+    return runGenerations(mutationRate, generationSize, numEvaluations, initialPop, globalFront, handles);
 }
 
 int main() {
-    // TODO objectives - fitness, age (in log tenure groupings maybe?), weight?
     // Meta objectives to consider
     // – Simplicity
     // – Evolvability
@@ -112,7 +109,12 @@ int main() {
     double mutationRate = 0.05; // TODO take as a param
 
     ParetoFront globalFront;
-    ParetoSelector generation = runRecursive(mutationRate, generationSize, numEvaluationsPerGeneration, 4, globalFront);
+    std::vector<AsyncSimHandle> handles;
+    for (int i = 0; i < NUM_THREADS; i++) {
+        handles.push_back(createSimHandle(i));
+    }
+
+    ParetoSelector generation = runRecursive(mutationRate, generationSize, numEvaluationsPerGeneration, 4, globalFront, handles);
 
     // Now we hillclimb the best solution(s)
     double bestFitness = 0;
@@ -138,10 +140,12 @@ int main() {
     while (iterSinceImprovement < 500) {
         OozebotEncoding newEncoding1 = mutate(encoding1);
         OozebotEncoding newEncoding2 = mutate(encoding2);
-        AsyncSimHandle handle1 = OozebotEncoding::evaluate(newEncoding1, 0);
-        AsyncSimHandle handle2 = OozebotEncoding::evaluate(newEncoding2, 1);
-        auto res1 = OozebotEncoding::wait(handle1);
-        auto res2 = OozebotEncoding::wait(handle2);
+        SimInputs inputs1 = OozebotEncoding::inputsFromEncoding(newEncoding1);
+        SimInputs inputs2 = OozebotEncoding::inputsFromEncoding(newEncoding2);
+        OozebotEncoding::evaluate(inputs1, newEncoding1, handles[0]);
+        OozebotEncoding::evaluate(inputs2, newEncoding2, handles[1]);
+        auto res1 = OozebotEncoding::wait(handles[0]);
+        auto res2 = OozebotEncoding::wait(handles[1]);
         newEncoding1.fitness = res1.first;
         newEncoding1.lengthAdj = res1.second;
         newEncoding1.id = ++nextID;
@@ -160,8 +164,12 @@ int main() {
             printf("New high fitness of %f\n", encoding2.fitness);
         }
     }
-    logEncoding(encoding1);
-    logEncoding(encoding2);
+    logEncoding(encoding1, handles[0]);
+    logEncoding(encoding2, handles[1]);
+
+    for (auto handle : handles) {
+        releaseSimHandle(handle);
+    }
 
     return 0;
 }

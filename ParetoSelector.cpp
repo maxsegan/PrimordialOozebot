@@ -15,7 +15,7 @@ bool sortFunction(OozebotSortWrapper a, OozebotSortWrapper b) {
 }
 
 // Insertion is O(M * N) plus cost of sort - O(N^2) - plus cost of tracking globally O(K)
-void ParetoSelector::insertOozebot(OozebotEncoding encoding) {
+void ParetoSelector::insertOozebot(OozebotEncoding &encoding) {
     OozebotSortWrapper wrapper = {encoding, {}, {}, 0, 0};
 
     for (std::vector<OozebotSortWrapper>::iterator iter = this->generation.begin(); iter != this->generation.end(); iter++) {
@@ -38,20 +38,19 @@ void ParetoSelector::removeAllOozebots() {
     this->idToIndex.clear();
 }
 
-std::pair<OozebotEncoding, AsyncSimHandle> gen(OozebotEncoding mom, OozebotEncoding dad, int i, bool shouldMutate) {
+std::pair<OozebotEncoding, SimInputs> gen(OozebotEncoding &mom, OozebotEncoding &dad, bool shouldMutate) {
     OozebotEncoding child = OozebotEncoding::mate(mom, dad);
     if (shouldMutate) {
         child = mutate(child);
     }
-    AsyncSimHandle handle = OozebotEncoding::evaluate(child, i);
-    return {child, handle};
+    return {child, OozebotEncoding::inputsFromEncoding(child)};
 }
 
 // Crowding is maintained by dividing the entire
 // search space deterministically in subspaces, where is the
 // depth parameter and is the number of decision variables, and
 // by updating the subspaces dynamically
-int ParetoSelector::selectAndMate() {
+int ParetoSelector::selectAndMate(std::vector<AsyncSimHandle> &handles) {
     this->sort();
 
     std::vector<OozebotEncoding> newGeneration = {
@@ -62,47 +61,45 @@ int ParetoSelector::selectAndMate() {
         this->generation[4].encoding
     };
 
-    const int asyncThreads = 35;
-
-    std::future<std::pair<OozebotEncoding, AsyncSimHandle>> threads[asyncThreads];
-    for (int i = 0; i < asyncThreads; i++) {
+    std::future<std::pair<OozebotEncoding, SimInputs>> threads[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; i++) {
         int k = this->selectionIndex();
         int l = this->selectionIndex();
         while (k == l) {
             l = this->selectionIndex();
         }
-        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, i + 1, ((double) rand() / RAND_MAX) < this->mutationProbability);
+        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
     }
     int k = this->selectionIndex();
     int l = this->selectionIndex();
     while (k == l) {
         l = this->selectionIndex();
     }
-    std::pair<OozebotEncoding, AsyncSimHandle> pair = gen(this->generation[k].encoding, this->generation[l].encoding, 0, ((double) rand() / RAND_MAX) < this->mutationProbability);
-    OozebotEncoding encoding = pair.first;
-    AsyncSimHandle handle = pair.second;
+    auto pair = threads[0].get();
+    OozebotEncoding::evaluate(pair.second, pair.first, handles[0]);
+    threads[0] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
     
     int j = 0;
     for (int i = 0; i < this->generationSize - 5; i++) {
-        auto res = OozebotEncoding::wait(handle);
-        encoding.fitness = res.first;
-        encoding.lengthAdj = res.second;
-        this->globalParetoFront->evaluateEncoding(encoding);
-        newGeneration.push_back(encoding);
+        auto res = OozebotEncoding::wait(handles[i % NUM_THREADS]);
+        pair.first.fitness = res.first;
+        pair.first.lengthAdj = res.second;
+        this->globalParetoFront->evaluateEncoding(pair.first);
+        newGeneration.push_back(pair.first);
 
         if (i < this->generationSize - 6) {
+            j = (j + 1) % NUM_THREADS;
             pair = threads[j].get();
-            encoding = pair.first;
-            handle = pair.second;
-            if (i < this->generationSize - 5 - asyncThreads) {
+            OozebotEncoding::evaluate(pair.second, pair.first, handles[j]);
+            
+            if (i < this->generationSize - 5 - NUM_THREADS) {
                 k = this->selectionIndex();
                 l = this->selectionIndex();
                 while (k == l) {
                     l = this->selectionIndex();
                 }
-                threads[j] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, i + asyncThreads, ((double) rand() / RAND_MAX) < this->mutationProbability);
+                threads[j] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
             }
-            j = (j + 1) % asyncThreads;
         }
     }
 
