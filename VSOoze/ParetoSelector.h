@@ -6,7 +6,7 @@
 #include "OozebotEncoding.h"
 #include "ParetoFront.h"
 
-const int NUM_THREADS = 5;
+const int NUM_THREADS = 35;
 
 // Indices don't work bc we sort... need to ID these and do indices just at sort time - otherwise track IDs
 struct OozebotSortWrapper {
@@ -39,7 +39,7 @@ public:
     void insertOozebot(OozebotEncoding &encoding);
 
     // returns number of evaluations
-    int selectAndMate(std::vector<AsyncSimHandle> &handles);
+    int selectAndMate();
 
     std::vector<OozebotSortWrapper> generation;
     std::vector<double> indexToProbability;

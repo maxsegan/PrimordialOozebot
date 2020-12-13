@@ -68,8 +68,7 @@ public:
     static SimInputs inputsFromEncoding(OozebotEncoding &encoding);
 
     // Sync on the handle to get the result
-    static void evaluate(SimInputs &inputs, OozebotEncoding &encoding, AsyncSimHandle &handle);
-    static std::pair<double, double> wait(AsyncSimHandle &handle);
+    static void evaluate(OozebotEncoding &encoding);
 
     static OozebotEncoding randomEncoding();
 

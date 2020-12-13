@@ -12,12 +12,13 @@
 #include "ParetoFront.h"
 #include "cudaSim.h"
 
-void logEncoding(OozebotEncoding &encoding, AsyncSimHandle &handle) {
+void logEncoding(OozebotEncoding &encoding) {
     printf("New encoding on pareto front: %d with fitness: %f length adj: %f\n", encoding.id, encoding.fitness, encoding.lengthAdj);
     std::map<int, int> exteriorPoints = {};
     // We now log this to report - should this be here? Maybe not, but the async is annoying.
     // Prolly wanted a callback
     SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
+    AsyncSimHandle handle = createSimHandle(encoding.id, inputs.points.size(), inputs.springs.size());
     std::ofstream myfile;
     myfile.open("output/robo" + std::to_string(encoding.id) + "-" + std::to_string(encoding.fitness) + ".txt");
     // Janky JSON bc meh it's simple
@@ -55,7 +56,6 @@ void logEncoding(OozebotEncoding &encoding, AsyncSimHandle &handle) {
     double t = 0;
     double dt = 1.0 / 24.0; // 24fps
     simulate(handle, inputs.points, inputs.springs, inputs.springPresets, 0, encoding.globalTimeInterval); // 0s to just capture initial conditions
-    synchronize(handle);
     double simDuration = 30.0;
     while (t < simDuration) {
         myfile << "[\n";
@@ -76,13 +76,13 @@ void logEncoding(OozebotEncoding &encoding, AsyncSimHandle &handle) {
         } else {
             myfile << "],\n";
             simulateAgain(handle, inputs.springPresets, t, t + dt, encoding.globalTimeInterval);
-            synchronize(handle);
         }
         t += dt;
     }
     myfile << "]\n";
     myfile << "}";
     myfile.close();
+    releaseSimHandle(handle);
 }
 
 bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
@@ -122,7 +122,7 @@ bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
     }
 
     this->encodingFront.push_back(encoding);
-    std::thread(logEncoding, encoding, this->loggingHandle).detach();
+    std::thread(logEncoding, encoding).detach();
 
     return true;
 }
@@ -154,8 +154,4 @@ double ParetoFront::noveltyDegreeForEncoding(OozebotEncoding encoding) {
     int lengthAdjBucket = (int) round(encoding.lengthAdj / this->lengthAdjBucketSize);
     int fitnessBucket = (int) round(encoding.fitness / this->fitnessBucketSize);
     return (double) 1 / this->buckets[lengthAdjBucket][fitnessBucket];  
-}
-
-ParetoFront::~ParetoFront() {
-    releaseSimHandle(this->loggingHandle);
 }

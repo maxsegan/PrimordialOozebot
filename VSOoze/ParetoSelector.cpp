@@ -38,19 +38,20 @@ void ParetoSelector::removeAllOozebots() {
     this->idToIndex.clear();
 }
 
-std::pair<OozebotEncoding, SimInputs> gen(OozebotEncoding &mom, OozebotEncoding &dad, bool shouldMutate) {
+OozebotEncoding gen(OozebotEncoding &mom, OozebotEncoding &dad, bool shouldMutate) {
     OozebotEncoding child = OozebotEncoding::mate(mom, dad);
     if (shouldMutate) {
         child = mutate(child);
     }
-    return {child, OozebotEncoding::inputsFromEncoding(child)};
+    OozebotEncoding::evaluate(child);
+    return child;
 }
 
 // Crowding is maintained by dividing the entire
 // search space deterministically in subspaces, where is the
 // depth parameter and is the number of decision variables, and
 // by updating the subspaces dynamically
-int ParetoSelector::selectAndMate(std::vector<AsyncSimHandle> &handles) {
+int ParetoSelector::selectAndMate() {
     this->sort();
 
     std::vector<OozebotEncoding> newGeneration = {
@@ -61,48 +62,26 @@ int ParetoSelector::selectAndMate(std::vector<AsyncSimHandle> &handles) {
         this->generation[4].encoding
     };
 
-    std::future<std::pair<OozebotEncoding, SimInputs>> threads[NUM_THREADS];
-    std::pair<OozebotEncoding, SimInputs> pairs[NUM_THREADS];
+    std::future<OozebotEncoding> threads[NUM_THREADS];
 
+    int k, l;
     for (int i = 0; i < NUM_THREADS; i++) {
-        int k = this->selectionIndex();
-        int l = this->selectionIndex();
-        while (k == l) {
-            l = this->selectionIndex();
-        }
-        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
-    }
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pairs[i] = threads[i].get();
-        OozebotEncoding::evaluate(pairs[i].second, pairs[i].first, handles[i]);
-        int k = this->selectionIndex();
-        int l = this->selectionIndex();
-        while (k == l) {
-            l = this->selectionIndex();
-        }
-        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
-    }
-    int k = this->selectionIndex();
-    int l = this->selectionIndex();
-    while (k == l) {
+        k = this->selectionIndex();
         l = this->selectionIndex();
+        while (k == l) {
+            l = this->selectionIndex();
+        }
+        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
     }
-    auto pair = threads[0].get();
-    OozebotEncoding::evaluate(pair.second, pair.first, handles[0]);
-    threads[0] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
     
     int j = 0;
     for (int i = 0; i < this->generationSize - 5; i++) {
-        auto res = OozebotEncoding::wait(handles[i % NUM_THREADS]);
-        pairs[i].first.fitness = res.first;
-        pairs[i].first.lengthAdj = res.second;
-        this->globalParetoFront->evaluateEncoding(pairs[i].first);
-        newGeneration.push_back(pairs[i].first);
+        OozebotEncoding encoding = threads[j].get();
+        this->globalParetoFront->evaluateEncoding(encoding);
+        newGeneration.push_back(encoding);
 
         if (i < this->generationSize - 6) {
-            j = (j + 1) % NUM_THREADS;
-            
-            if (i < this->generationSize - 5 - 2 * NUM_THREADS) {
+            if (i < this->generationSize - 5 - NUM_THREADS) {
                 k = this->selectionIndex();
                 l = this->selectionIndex();
                 while (k == l) {
@@ -110,12 +89,13 @@ int ParetoSelector::selectAndMate(std::vector<AsyncSimHandle> &handles) {
                 }
                 threads[j] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
             }
+            j = (j + 1) % NUM_THREADS;
         }
     }
 
     this->removeAllOozebots();
-    for (auto it = newGeneration.begin(); it != newGeneration.end(); it++) {
-        this->insertOozebot(*it);
+    for (auto oozebot : newGeneration) {
+        this->insertOozebot(oozebot);
     }
 
     return this->generationSize - 5;
@@ -143,6 +123,10 @@ void ParetoSelector::sort() {
         }
         workingVec.push_back(nextTier);
         numLeft -= (int) nextTier.size();
+        if (nextTier.size() == 0) {
+            printf("Error in sort!\n");
+            break;
+        }
     }
     this->idToIndex.clear();
     std::vector<OozebotSortWrapper> nextGeneration;

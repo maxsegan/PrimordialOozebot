@@ -6,7 +6,7 @@
 #include "cudaSim.h"
 #include "OozebotEncoding.h"
 
-void logEncoding(OozebotEncoding &encoding, AsyncSimHandle &handle);
+void logEncoding(OozebotEncoding &encoding);
 
 class ParetoFront {
 public:
@@ -16,10 +16,7 @@ public:
     // 1 if very novel, asymptotes to 0 as it's less novel
     double noveltyDegreeForEncoding(OozebotEncoding encoding);
 
-    ~ParetoFront();
-
 private:
-    AsyncSimHandle loggingHandle = createSimHandle(0);
     std::vector<OozebotEncoding> encodingFront;
     std::vector<std::pair<double, double>> allResults;
     std::vector<std::vector<int>> buckets;

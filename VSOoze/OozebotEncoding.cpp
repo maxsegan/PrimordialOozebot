@@ -302,13 +302,11 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     return encoding;
 }
 
-void OozebotEncoding::evaluate(SimInputs &inputs, OozebotEncoding &encoding, AsyncSimHandle &handle) {
+void OozebotEncoding::evaluate(OozebotEncoding &encoding) {
+    SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
+    AsyncSimHandle handle = createSimHandle(encoding.id, inputs.points.size(), inputs.springs.size());
     handle.length = inputs.length;
     simulate(handle, inputs.points, inputs.springs, inputs.springPresets, 6.0, encoding.globalTimeInterval);
-}
-
-std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle &handle) {
-    synchronize(handle);
     double mass = 0;
     double startX = 0;
     double startZ = 0;
@@ -321,8 +319,9 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle &handle) {
     }
     startX = (startX / mass);
     startZ = (startZ / mass);
+    bool invalid = false;
     if (isinf(handle.duration) || mass == 0) {
-        return {0, 0};
+        invalid = true;
     }
     double endX = 0;
     double endZ = 0;
@@ -330,18 +329,25 @@ std::pair<double, double> OozebotEncoding::wait(AsyncSimHandle &handle) {
         Point point = handle.endPoints[i];
         if (isnan(point.x) || isinf(point.x) || isnan(point.z) || isinf(point.z)) {
             printf("Solution has NaN or inf\n");
-            return {0, 0};
+            invalid = true;
+            break;
         }
         double pm = point.mass;
         endX += point.x * pm;
         endX += point.z * pm;
     }
-    endX = endX / mass;
-    endZ = endZ / mass;
-    const double deltaX = endX - startX;
-    const double deltaZ = endZ - startZ;
-    double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ) / handle.duration;
-    return {fitness, fitness / std::max(1.5, handle.length) }; // Don't incentivize wee little robots - at least 15 length to avoid trivialities
+    if (invalid) {
+        encoding.fitness = 0;
+        encoding.lengthAdj = 0;
+    } else {
+        endX = endX / mass;
+        endZ = endZ / mass;
+        const double deltaX = endX - startX;
+        const double deltaZ = endZ - startZ;
+        double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ) / handle.duration;
+        encoding.fitness = fitness;
+        encoding.lengthAdj = fitness / std::max(1.5, handle.length); // Don't incentivize wee little robots - at least 15 length to avoid trivialities
+    }
 }
 
 void layBlockAtPosition(
