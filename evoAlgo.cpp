@@ -62,11 +62,14 @@ ParetoSelector runRandomSearch(int numEvaluations, int generationSize, ParetoFro
 
         if (i < numEvaluations - 1) {
             j = (j + 1) % NUM_THREADS;
+            printf("i: %d", i);
             if (i < numEvaluations - NUM_THREADS) {
                 pairs[i] = threads[j].get();
+                printf("first i: %d", i);
                 OozebotEncoding::evaluate(pairs[i].second, pairs[i].first, handles[j]);
             }
             if (i < numEvaluations - 2 * NUM_THREADS) {
+                printf("second i: %d", i);
                 threads[j] = std::async(&gen);
             }
         }

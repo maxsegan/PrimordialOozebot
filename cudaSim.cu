@@ -164,7 +164,7 @@ AsyncSimHandle createSimHandle(int i) {
     
     HANDLE_ERROR(cudaGetDeviceCount(&nDevices));
     if (nDevices > 1) {
-    //    deviceNumber = i % nDevices;
+        deviceNumber = i % nDevices;
         HANDLE_ERROR(cudaSetDevice(deviceNumber));
     }
 
