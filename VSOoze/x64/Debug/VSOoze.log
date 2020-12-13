@@ -1,0 +1,66 @@
+﻿  Compiling CUDA source file cudaSim.cu...
+  
+  C:\Users\max\Desktop\PrimordialOozebot\VSOoze>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\bin\HostX86\x64" -x cu   -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.1\include"  -G   --keep-dir x64\Debug -maxrregcount=0  --machine 64 --compile -cudart static  -g   -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc142.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\cudaSim.cu.obj "C:\Users\max\Desktop\PrimordialOozebot\VSOoze\cudaSim.cu" 
+  cudaSim.cu
+C:/Users/max/Desktop/PrimordialOozebot/VSOoze/cudaSim.cu(212): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+C:/Users/max/Desktop/PrimordialOozebot/VSOoze/cudaSim.cu(222): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+C:/Users/max/Desktop/PrimordialOozebot/VSOoze/cudaSim.cu(223): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+C:/Users/max/Desktop/PrimordialOozebot/VSOoze/cudaSim.cu(231): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:/Users/max/Desktop/PrimordialOozebot/VSOoze/cudaSim.cu(235): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:/Users/max/Desktop/PrimordialOozebot/VSOoze/cudaSim.cu(254): warning C4244: '=': conversion from 'double' to '_Ty', possible loss of data
+          with
+          [
+              _Ty=float
+          ]
+C:/Users/max/Desktop/PrimordialOozebot/VSOoze/cudaSim.cu(303): warning C4244: '=': conversion from 'double' to '_Ty', possible loss of data
+          with
+          [
+              _Ty=float
+          ]
+  evoAlgo.cpp
+  OozebotEncoding.cpp
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(50,129): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(65,42): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(67,41): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(73,43): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(80,41): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(83,41): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(253,53): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(256,53): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(259,53): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(262,53): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(265,54): warning C4244: '=': conversion from 'const _Ty' to 'float', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(383,30): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\OozebotEncoding.cpp(694,27): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
+  ParetoFront.cpp
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\ParetoFront.cpp(90,25): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\ParetoFront.cpp(102,23): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\ParetoFront.cpp(141,28): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\ParetoFront.cpp(142,26): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\ParetoFront.cpp(155,25): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\ParetoFront.cpp(156,23): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+  ParetoSelector.cpp
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\ParetoSelector.cpp(145,35): warning C4267: '-=': conversion from 'size_t' to 'int', possible loss of data
+  Generating Code...
+     Creating library C:\Users\max\Desktop\PrimordialOozebot\VSOoze\x64\Debug\VSOoze.lib and object C:\Users\max\Desktop\PrimordialOozebot\VSOoze\x64\Debug\VSOoze.exp
+  VSOoze.vcxproj -> C:\Users\max\Desktop\PrimordialOozebot\VSOoze\x64\Debug\VSOoze.exe
