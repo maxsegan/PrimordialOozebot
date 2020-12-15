@@ -2,7 +2,7 @@
 #define OOZEBOT_ENCODING_H
 
 #include <vector>
-#include "cudaSim.h"
+#include "cppSim.h"
 
 enum OozebotExpressionType {
     boxDeclaration, // combination of springs and masses - one size mass (kg), and spring config for all springs (k, a, b, c)
@@ -33,6 +33,8 @@ public:
     OozebotExpressionType expressionType;
 
     float kg; // 0.001 - 0.1
+    float uk; // 0.02 - 1
+    float us; // 0.02 - 1
     float k; // 500 - 10,000
     float a; // expressed as a ratio of l0's natural length 0.5-1.5
     float b; // 0 - 0.6, often 0
@@ -44,9 +46,9 @@ public:
     int radius;
     OozebotAxis thicknessIgnoreAxis;
     // For extremities we grow out of the surface block reached from the center point moving in steps of these magnitude
-    int anchorX;
-    int anchorY;
-    int anchorZ;
+    double anchorX;
+    double anchorY;
+    double anchorZ;
 };
 
 struct SimInputs {
@@ -60,7 +62,7 @@ class OozebotEncoding {
 public:
     double fitness; // Depends on objective - might be net displacement
     double lengthAdj; // Fitness normalized for maximum dimension cross section
-    double globalTimeInterval; // 1 - 10
+    double globalTimeInterval; // 2 - 10
     unsigned long int id;
 
     static OozebotEncoding mate(OozebotEncoding &parent1, OozebotEncoding &parent2);
@@ -68,7 +70,7 @@ public:
     static SimInputs inputsFromEncoding(OozebotEncoding &encoding);
 
     // Sync on the handle to get the result
-    static void evaluate(OozebotEncoding &encoding);
+    static void evaluate(OozebotEncoding &encoding, double duration);
 
     static OozebotEncoding randomEncoding();
 
@@ -80,6 +82,8 @@ public:
 };
 
 OozebotEncoding mutate(OozebotEncoding encoding);
+
+unsigned long int newGlobalID();
 
 // Returns true if the first encoding dominates the second, false otherwise
 inline bool dominates(OozebotEncoding firstEncoding, OozebotEncoding secondEncoding) {

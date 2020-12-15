@@ -6,7 +6,7 @@
 #include "OozebotEncoding.h"
 #include "ParetoFront.h"
 
-const int NUM_THREADS = 35;
+const int NUM_THREADS = 50;
 
 // Indices don't work bc we sort... need to ID these and do indices just at sort time - otherwise track IDs
 struct OozebotSortWrapper {
@@ -15,11 +15,6 @@ struct OozebotSortWrapper {
     std::vector<signed long int> dominated; // Which ids dominate us?
     int dominationDegree; // How many times are we dominated? Tmp variable for sorting
     double novelty;
-};
-
-struct PendingSolution {
-    AsyncSimHandle handle;
-    OozebotEncoding encoding;
 };
 
 class ParetoSelector {
@@ -39,7 +34,7 @@ public:
     void insertOozebot(OozebotEncoding &encoding);
 
     // returns number of evaluations
-    int selectAndMate();
+    int selectAndMate(double duration);
 
     std::vector<OozebotSortWrapper> generation;
     std::vector<double> indexToProbability;

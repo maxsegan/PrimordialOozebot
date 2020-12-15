@@ -11,8 +11,13 @@ struct Point {
   float vy; // meters/second
   float vz; // meters/second
   float mass; // kg
+  float uk; // kinetic friction coefficient
+  float us; // static friction coefficient
   int numSprings; // Int - hack for CUDA ease - must be filled in externally, though
   int springDeltaIndex; // Filled in internally, ignore
+  float fx; // N - internal bookkeeping for the cpp sim
+  float fy; // N
+  float fz; // N
 };
 
 struct Spring {
@@ -47,7 +52,6 @@ struct AsyncSimHandle {
   int numPoints;
   int numSprings;
   int *invalid_h;
-  double length;
   double duration; // It will run for slightly longer than requested to align to the same point in the frequency
   int device;
 };

@@ -25,10 +25,8 @@ static void HandleError( cudaError_t err,
 }
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 
-#define staticFriction 0.5
-#define kineticFriction 0.3
 #define dt 0.0001
-#define dampening 0.9995
+#define dampening 0.999
 #define gravity -9.81
 #define kGround -100000.0
 
@@ -41,9 +39,7 @@ __global__ void update_spring(
     double preset0,
     double preset1,
     double preset2,
-    double preset3,
-    double preset4,
-    double preset5) {
+    double preset3) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
 
@@ -60,6 +56,7 @@ __global__ void update_spring(
     
     if (dist > (s.l0 * 6)) {
         bool firstInvalidation = atomicCAS(invalid, 0, 1);
+        return;
     }
 
     // negative if repelling, positive if attracting
@@ -76,12 +73,6 @@ __global__ void update_spring(
             break;
         case 3:
             adjust = preset3;
-            break;
-        case 4:
-            adjust = preset4;
-            break;
-        case 5:
-            adjust = preset5;
             break;
         default:
             adjust = 1;
@@ -126,12 +117,12 @@ __global__ void update_point(Point *points, SpringDelta *springDeltas, int n) {
 
     if (y <= 0) {
         float fh = sqrt(fx * fx + fz * fz);
-        float fyfric = abs(fy * staticFriction);
+        float fyfric = abs(fy * p.us);
         if (fh < fyfric) {
             fx = 0;
             fz = 0;
         } else {
-            float fykinetic = abs(fy * kineticFriction) / fh;
+            float fykinetic = abs(fy * p.uk) / fh;
             fx = fx - fx * fykinetic;
             fz = fz - fz * fykinetic;
         }
@@ -177,7 +168,7 @@ AsyncSimHandle createSimHandle(int i, int numPoints, int numSprings) {
     int *invalid_h = (int *) malloc(sizeof(int));
     Point *start_p = (Point *) malloc(numPoints * sizeof(Point));
 
-    return {NULL, start_p, p_d, s_d, ps_d, b_d, numPoints, numSprings, invalid_h, 0, 0, deviceNumber};
+    return {NULL, start_p, p_d, s_d, ps_d, b_d, numPoints, numSprings, invalid_h, 0, deviceNumber};
 }
 
 void releaseSimHandle(AsyncSimHandle &handle) {
@@ -218,18 +209,12 @@ void simulate(AsyncSimHandle &handle, std::vector<Point> &points, std::vector<Sp
             const float a = presets[i].a;
             const float b = presets[i].b;
             const float c = presets[i].c; 
-            pv[i] = (float) (a * (1 + b * sin((t + c) * oscillationFrequency)));
+            pv[i] = (float) (a * (1 + b * sin(t * oscillationFrequency + c)));
         }
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(handle.p_d, handle.s_d, handle.ps_d, handle.numSprings, handle.b_d, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(handle.p_d, handle.s_d, handle.ps_d, handle.numSprings, handle.b_d, pv[0], pv[1], pv[2], pv[3]);
         update_point<<<numPointBlocks, numPointThreads>>>(handle.p_d, handle.ps_d, handle.numPoints);
         if (t < 1.0 && t + dt >= 1.0) {
             HANDLE_ERROR(cudaMemcpy(handle.startPoints, handle.p_d, handle.numPoints * sizeof(Point), cudaMemcpyDeviceToHost));
-            int numCycles = 1;
-            double oscillationDuration = 2 * M_PI / oscillationFrequency;
-            while ((oscillationDuration * numCycles + t) < n) {
-                numCycles += 1;
-            }
-            n = (oscillationDuration * numCycles) + t;
         }
         t += dt;
     }
@@ -245,10 +230,10 @@ void simulate(AsyncSimHandle &handle, std::vector<Point> &points, std::vector<Sp
 
 void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, double t, double n, double oscillationFrequency) {
     int numPoints = handle.numPoints;
-    int numPointThreads = 12;
+    int numPointThreads = 120;
     int numPointBlocks = numPoints / numPointThreads + 1;
   
-    int numSpringThreads = 25;
+    int numSpringThreads = 250;
     int numSpringBlocks = handle.numSprings / numSpringThreads + 1;
 
     std::vector<float> pv;
@@ -262,9 +247,9 @@ void simulateAgain(AsyncSimHandle &handle, std::vector<FlexPreset> &presets, dou
             const float a = presets[i].a;
             const float b = presets[i].b;
             const float c = presets[i].c; 
-            pv[i] = (float) (a * (1 + b * sin((t + c) * oscillationFrequency)));
+            pv[i] = (float) (a * (1 + b * sin(t * oscillationFrequency + c)));
         }
-        update_spring<<<numSpringBlocks, numSpringThreads>>>(handle.p_d, handle.s_d, handle.ps_d, handle.numSprings, handle.b_d, pv[0], pv[1], pv[2], pv[3], pv[4], pv[5]);
+        update_spring<<<numSpringBlocks, numSpringThreads>>>(handle.p_d, handle.s_d, handle.ps_d, handle.numSprings, handle.b_d, pv[0], pv[1], pv[2], pv[3]);
         update_point<<<numPointBlocks, numPointThreads>>>(handle.p_d, handle.ps_d, numPoints);
         t += dt;
     }

@@ -1,7 +1,9 @@
 ﻿  evoAlgo.cpp
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\evoAlgo.cpp(49,49): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\max\Desktop\PrimordialOozebot\VSOoze\evoAlgo.cpp(82,52): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
      Creating library C:\Users\max\Desktop\PrimordialOozebot\VSOoze\x64\Release\VSOoze.lib and object C:\Users\max\Desktop\PrimordialOozebot\VSOoze\x64\Release\VSOoze.exp
   Generating code
-  4 of 2547 functions ( 0.2%) were compiled, the rest were copied from previous compilation.
+  2 of 2577 functions (<0.1%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
     1 functions had inline decision re-evaluated but remain unchanged
   Finished generating code

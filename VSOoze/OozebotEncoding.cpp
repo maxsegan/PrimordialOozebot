@@ -10,15 +10,20 @@
 #include <time.h>
 #include <thread>
 
+#include "cppSim.h"
 #include "OozebotEncoding.h"
 
-const int kNumBoxes = 6;
-const int kMaxLayAndMoveSequences = 6;
-const int kMaxLayAndMoveLength = 30;
-const int kMaxGrowthCommands = 8;
-const int kMaxRadius = 8;
+const int kNumBoxes = 4;
+const int kMaxLayAndMoveSequences = 4;
+const int kMaxLayAndMoveLength = 8;
+const int kMaxGrowthCommands = 6;
+const int kMaxRadius = 3;
 
 std::atomic<unsigned long int> GlobalId(1);
+
+unsigned long int newGlobalID() {
+    return GlobalId.fetch_add(1, std::memory_order_relaxed);
+}
 
 bool springSortFunction(OozebotExpression &a, OozebotExpression &b) {
     return (a.b > b.b);
@@ -63,6 +68,8 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
         OozebotExpression boxCreationExpression;
         boxCreationExpression.expressionType = boxDeclaration;
         boxCreationExpression.kg = (float) (0.001 + randFloat() * 0.099);
+        boxCreationExpression.uk = (float)(0.05 + randFloat() * 0.95);
+        boxCreationExpression.us = (float)(0.1 + randFloat() * 0.9);
         double r = randFloat(); // 0 to 1
         boxCreationExpression.k = (float) (500.0 + r * 9500.0);
         r = randFloat(); // 0 to 1
@@ -139,13 +146,13 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
             growthExpression.layAndMoveIdx = randomInRange(0, kMaxLayAndMoveSequences - 1);
             growthExpression.radius = randomInRange(0, kMaxRadius - 1);
             growthExpression.thicknessIgnoreAxis = static_cast<OozebotAxis>(randomInRange(0, 3)); // sometimes make body 2D
-            growthExpression.anchorX = randomInRange(-5, 5);
-            growthExpression.anchorY = randomInRange(-5, 5);
-            growthExpression.anchorZ = randomInRange(-5, 5);
-            while (growthExpression.anchorX == 0 && growthExpression.anchorY == 0 && growthExpression.anchorZ == 0) {
-                growthExpression.anchorX = randomInRange(-5, 5);
-                growthExpression.anchorY = randomInRange(-5, 5);
-                growthExpression.anchorZ = randomInRange(-5, 5);
+            growthExpression.anchorX = (randFloat() - 0.5) * 2;
+            growthExpression.anchorY = (randFloat() - 0.5) * 2;
+            growthExpression.anchorZ = (randFloat() - 0.5) * 2;
+            while (abs(growthExpression.anchorX) <0.1 && abs(growthExpression.anchorY) < 0.1 && abs(growthExpression.anchorZ) < 0.1) {
+                growthExpression.anchorX = (randFloat() - 0.5) * 2;
+                growthExpression.anchorY = (randFloat() - 0.5) * 2;
+                growthExpression.anchorZ = (randFloat() - 0.5) * 2;
             }
         }
         growthCommands.push_back(growthExpression);
@@ -154,7 +161,7 @@ OozebotEncoding OozebotEncoding::randomEncoding() {
 
     OozebotEncoding encoding;
     double r = randFloat(); // 0 to 1
-    encoding.globalTimeInterval = 1.0 + r * 9.0;
+    encoding.globalTimeInterval = 2.0 + r * 8.0;
     encoding.lengthAdj = 0;
     encoding.id = GlobalId.fetch_add(1, std::memory_order_relaxed);
     encoding.boxCommands = boxCommands;
@@ -243,11 +250,11 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
     } else if (r < 8) {
         double seed = randFloat() - 0.5; // -0.5 to 0.5
         double interval = encoding.globalTimeInterval + seed;
-        encoding.globalTimeInterval = std::min(std::max(interval, 1.0), 10.0);
+        encoding.globalTimeInterval = std::min(std::max(interval, 2.0), 10.0);
     } else if (r < 30) {
         int index = randomInRange(0, (int) (encoding.boxCommands.size() - 1));
         double seed = randFloat() - 0.5; // -0.5 to 0.5
-        r = randomInRange(0, 4);
+        r = randomInRange(0, 6);
         if (r == 0) {
             double k = encoding.boxCommands[index].k + seed * 50.0;
             encoding.boxCommands[index].k = (float) std::min(std::max(k, 500.0), 10000.0);
@@ -260,9 +267,16 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
         } else if (r == 3) {
             double c = encoding.boxCommands[index].c + seed * 0.1;
             encoding.boxCommands[index].c = (float) std::min(std::max(c, 0.0), 2 * M_PI);
-        } else {
+        } else if (r == 4) {
             double kg = encoding.boxCommands[index].kg + seed * 0.01;
             encoding.boxCommands[index].kg = (float) std::min(std::max(kg, 0.001), 0.1);
+        } else if (r == 2) {
+            double uk = encoding.boxCommands[index].uk + seed * 0.05;
+            encoding.boxCommands[index].uk = (float) std::min(std::max(uk, 0.05), 1.0);
+        }
+        else {
+            double us = encoding.boxCommands[index].us + seed * 0.05;
+            encoding.boxCommands[index].us = (float) std::min(std::max(us, 0.1), 1.0);
         }
         std::sort(encoding.boxCommands.begin(), encoding.boxCommands.end(), springSortFunction);
     } else if (r < 60) {
@@ -283,70 +297,137 @@ OozebotEncoding mutate(OozebotEncoding encoding) {
             } else if (r < 70) {
                 encoding.growthCommands[index].thicknessIgnoreAxis = static_cast<OozebotAxis>(randomInRange(0, 3)); // sometimes make body 2D
             } else if (r < 80) {
-                int newAnchor = encoding.growthCommands[index].anchorX + randomInRange(0, 1) ? -1 : 1;
-                encoding.growthCommands[index].anchorX = std::max(std::min(newAnchor, -5), 5);
+                double newAnchor = encoding.growthCommands[index].anchorX + (randFloat() - 0.5) * 0.1;
+                encoding.growthCommands[index].anchorX = std::max(std::min(newAnchor, -1.0), 1.0);
             } else if (r < 90) {
-                int newAnchor = encoding.growthCommands[index].anchorY + randomInRange(0, 1) ? -1 : 1;
-                encoding.growthCommands[index].anchorY = std::max(std::min(newAnchor, -5), 5);
+                double newAnchor = encoding.growthCommands[index].anchorY + (randFloat() - 0.5) * 0.1;
+                encoding.growthCommands[index].anchorY = std::max(std::min(newAnchor, -1.0), 1.0);
             } else {
-                int newAnchor = encoding.growthCommands[index].anchorZ + randomInRange(0, 1) ? -1 : 1;
-                encoding.growthCommands[index].anchorZ = std::max(std::min(newAnchor, -5), 5);
+                double newAnchor = encoding.growthCommands[index].anchorZ + (randFloat() - 0.5) * 0.1;
+                encoding.growthCommands[index].anchorZ = std::max(std::min(newAnchor, -1.0), 1.0);
             }
-            while (encoding.growthCommands[index].anchorX == 0 && encoding.growthCommands[index].anchorY == 0 && encoding.growthCommands[index].anchorZ == 0) {
-                encoding.growthCommands[index].anchorX = randomInRange(-5, 5);
-                encoding.growthCommands[index].anchorY = randomInRange(-5, 5);
-                encoding.growthCommands[index].anchorZ = randomInRange(-5, 5);
+            while (abs(encoding.growthCommands[index].anchorX) < 0.1 && abs(encoding.growthCommands[index].anchorY) < 0.1 && abs(encoding.growthCommands[index].anchorZ) < 0.1) {
+                encoding.growthCommands[index].anchorX = (randFloat() - 0.5) * 2;
+                encoding.growthCommands[index].anchorY = (randFloat() - 0.5) * 2;
+                encoding.growthCommands[index].anchorZ = (randFloat() - 0.5) * 2;
             }
         }
     }
     return encoding;
 }
 
-void OozebotEncoding::evaluate(OozebotEncoding &encoding) {
+void OozebotEncoding::evaluate(OozebotEncoding &encoding, double duration) {
     SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
-    AsyncSimHandle handle = createSimHandle(encoding.id, inputs.points.size(), inputs.springs.size());
-    handle.length = inputs.length;
-    simulate(handle, inputs.points, inputs.springs, inputs.springPresets, 6.0, encoding.globalTimeInterval);
-    double mass = 0;
-    double startX = 0;
-    double startZ = 0;
-    for (int i = 0; i < handle.numPoints; i++) {
-        Point point = handle.startPoints[i];
-        double pm = point.mass;
-        startX += point.x * pm;
-        startZ += point.z * pm;
-        mass += pm;
-    }
-    startX = (startX / mass);
-    startZ = (startZ / mass);
-    bool invalid = false;
-    if (isinf(handle.duration) || mass == 0) {
-        invalid = true;
-    }
-    double endX = 0;
-    double endZ = 0;
-    for (int i = 0; i < handle.numPoints; i++) {
-        Point point = handle.endPoints[i];
-        if (isnan(point.x) || isinf(point.x) || isnan(point.z) || isinf(point.z)) {
-            printf("Solution has NaN or inf\n");
-            invalid = true;
-            break;
+    int numPoints = inputs.points.size();
+    bool useCuda = false;// encoding.id % 16 < 6;
+    if (useCuda) {
+        AsyncSimHandle handle = createSimHandle(encoding.id, inputs.points.size(), inputs.springs.size());
+        simulate(handle, inputs.points, inputs.springs, inputs.springPresets, duration, encoding.globalTimeInterval);
+        double mass = 0;
+        double startX = 0;
+        double startZ = 0;
+        int numCycles = 1;
+        double oscillationDuration = 2 * M_PI / encoding.globalTimeInterval;
+        while ((oscillationDuration * numCycles + 1.0) < duration) {
+            numCycles += 1;
         }
-        double pm = point.mass;
-        endX += point.x * pm;
-        endX += point.z * pm;
-    }
-    if (invalid) {
-        encoding.fitness = 0;
-        encoding.lengthAdj = 0;
+        duration = (oscillationDuration * numCycles) + 1.0;
+        for (int i = 0; i < numPoints; i++) {
+            Point point = handle.startPoints[i];
+            double pm = point.mass;
+            startX += point.x * pm;
+            startZ += point.z * pm;
+            mass += pm;
+        }
+        startX = (startX / mass);
+        startZ = (startZ / mass);
+        bool invalid = false;
+        if (isinf(handle.duration) || mass == 0) {
+            invalid = true;
+        }
+        double endX = 0;
+        double endZ = 0;
+        for (int i = 0; i < numPoints; i++) {
+            Point point = handle.endPoints[i];
+            if (isnan(point.x) || isinf(point.x) || isnan(point.z) || isinf(point.z)) {
+                printf("Solution has NaN or inf\n");
+                invalid = true;
+                break;
+            }
+            double pm = point.mass;
+            endX += point.x * pm;
+            endX += point.z * pm;
+        }
+        if (invalid) {
+            encoding.fitness = 0;
+            encoding.lengthAdj = 0;
+        }
+        else {
+            endX = endX / mass;
+            endZ = endZ / mass;
+            const double deltaX = endX - startX;
+            const double deltaZ = endZ - startZ;
+            double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ) / duration;
+            encoding.fitness = fitness;
+            encoding.lengthAdj = fitness / inputs.length;
+        }
+        releaseSimHandle(handle);
     } else {
-        endX = endX / mass;
-        endZ = endZ / mass;
-        const double deltaX = endX - startX;
-        const double deltaZ = endZ - startZ;
-        double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ) / handle.duration;
-        encoding.fitness = fitness;
-        encoding.lengthAdj = fitness / std::max(1.5, handle.length); // Don't incentivize wee little robots - at least 15 length to avoid trivialities
+        bool valid = simulateCPP(inputs.points, inputs.springs, inputs.springPresets, 1.0, encoding.globalTimeInterval);
+        if (!valid) {
+            encoding.fitness = 0;
+            encoding.lengthAdj = 0;
+            return;
+        }
+        double mass = 0;
+        double startX = 0;
+        double startZ = 0;
+        int numCycles = 1;
+        double oscillationDuration = 2 * M_PI / encoding.globalTimeInterval;
+        while ((oscillationDuration * numCycles + 1.0) < duration) {
+            numCycles += 1;
+        }
+        duration = (oscillationDuration * numCycles) + 1.0;
+        valid = simulateCPP(inputs.points, inputs.springs, inputs.springPresets, duration - 1.0, encoding.globalTimeInterval);
+        for (int i = 0; i < numPoints; i++) {
+            Point point = inputs.points[i];
+            double pm = point.mass;
+            startX += point.x * pm;
+            startZ += point.z * pm;
+            mass += pm;
+        }
+        startX = (startX / mass);
+        startZ = (startZ / mass);
+        bool invalid = false;
+        if (mass == 0) {
+            invalid = true;
+        }
+        double endX = 0;
+        double endZ = 0;
+        for (int i = 0; i < numPoints; i++) {
+            Point point = inputs.points[i];
+            if (isnan(point.x) || isinf(point.x) || isnan(point.z) || isinf(point.z)) {
+                printf("Solution has NaN or inf\n");
+                invalid = true;
+                break;
+            }
+            double pm = point.mass;
+            endX += point.x * pm;
+            endX += point.z * pm;
+        }
+        if (invalid) {
+            encoding.fitness = 0;
+            encoding.lengthAdj = 0;
+        }
+        else {
+            endX = endX / mass;
+            endZ = endZ / mass;
+            const double deltaX = endX - startX;
+            const double deltaZ = endZ - startZ;
+            double fitness = sqrt(deltaX * deltaX + deltaZ * deltaZ) / duration;
+            encoding.fitness = fitness;
+            encoding.lengthAdj = fitness / inputs.length;
+        }
     }
 }
 
@@ -369,7 +450,7 @@ void layBlockAtPosition(
                 if (pointLocationToIndexMap.find(p) == pointLocationToIndexMap.end()) {
                     // It wasn't already there so we add it
                     pointLocationToIndexMap[p] = (int) points.size();
-                    Point p = {xi / 10.0f, yi / 10.0f, zi / 10.0f, 0, 0, 0, boxCommand.kg, 0, 0};
+                    Point p = {xi / 10.0f, yi / 10.0f, zi / 10.0f, 0, 0, 0, boxCommand.kg, boxCommand.uk, boxCommand.us, 0, 0};
                     points.push_back(p);
                 }
                 pointIndices.push_back(pointLocationToIndexMap[p]);
@@ -515,19 +596,18 @@ int processExtremityWithAnchor(
     std::map<Coordinate, std::pair<int, int>> &boxIndexSpringType,
     int radius,
     OozebotAxis thicknessIgnoreAxis,
-    int anchorX,
-    int anchorY,
-    int anchorZ,
+    double anchorX,
+    double anchorY,
+    double anchorZ,
     bool invertX,
     bool invertY,
     bool invertZ) {
     int x = 0;
     int y = 0;
     int z = 0;
-    int xi = 0;
-    int yi = 0;
-    int zi = 0;
-    bool valid = true;
+    double xi = 0;
+    double yi = 0;
+    double zi = 0;
     bool tmpInvertX = !invertX;
     bool tmpInvertY = !invertY;
     bool tmpInvertZ = !invertZ;
@@ -544,39 +624,21 @@ int processExtremityWithAnchor(
         tmpInvertZ = !invertZ;
     }
     while (true) {
-        for (int i = 0; i < anchorX; i++) {
-            xi += tmpInvertX ? -1 : 1;
-            if (outOfBounds(bodyIndexSpringType, xi, yi, zi)) {
-                valid = false;
-                break;
-            }
-            x = xi;
-        }
-        if (!valid) {
+        xi += tmpInvertX ? -anchorX : anchorX;
+        if (outOfBounds(bodyIndexSpringType, (int) xi, (int) yi, (int) zi)) {
             break;
         }
-        for (int i = 0; i < anchorY; i++) {
-            yi += tmpInvertY ? -1 : 1;
-            if (outOfBounds(bodyIndexSpringType, xi, yi, zi)) {
-                valid = false;
-                break;
-            }
-            y = yi;
-        }
-        if (!valid) {
+        x = (int) xi;
+        yi += tmpInvertY ? -anchorY : anchorY;
+        if (outOfBounds(bodyIndexSpringType, (int) xi, (int) yi, (int) zi)) {
             break;
         }
-        for (int i = 0; i < anchorZ; i++) {
-            zi += tmpInvertZ ? -1 : 1;
-            if (outOfBounds(bodyIndexSpringType, xi, yi, zi)) {
-                valid = false;
-                break;
-            }
-            z = zi;
-        }
-        if (!valid) {
+        y = (int) yi;
+        zi += tmpInvertZ ? -anchorZ : anchorZ;
+        if (outOfBounds(bodyIndexSpringType, (int) xi, (int) yi, (int) zi)) {
             break;
         }
+        z = (int) zi;
     }
     return processExtremity(
         sequence,

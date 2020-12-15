@@ -38,12 +38,12 @@ void ParetoSelector::removeAllOozebots() {
     this->idToIndex.clear();
 }
 
-OozebotEncoding gen(OozebotEncoding &mom, OozebotEncoding &dad, bool shouldMutate) {
+OozebotEncoding gen(OozebotEncoding &mom, OozebotEncoding &dad, bool shouldMutate, double duration) {
     OozebotEncoding child = OozebotEncoding::mate(mom, dad);
     if (shouldMutate) {
         child = mutate(child);
     }
-    OozebotEncoding::evaluate(child);
+    OozebotEncoding::evaluate(child, duration);
     return child;
 }
 
@@ -51,7 +51,7 @@ OozebotEncoding gen(OozebotEncoding &mom, OozebotEncoding &dad, bool shouldMutat
 // search space deterministically in subspaces, where is the
 // depth parameter and is the number of decision variables, and
 // by updating the subspaces dynamically
-int ParetoSelector::selectAndMate() {
+int ParetoSelector::selectAndMate(double duration) {
     this->sort();
 
     std::vector<OozebotEncoding> newGeneration = {
@@ -71,7 +71,7 @@ int ParetoSelector::selectAndMate() {
         while (k == l) {
             l = this->selectionIndex();
         }
-        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
+        threads[i] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability, duration);
     }
     
     int j = 0;
@@ -87,7 +87,7 @@ int ParetoSelector::selectAndMate() {
                 while (k == l) {
                     l = this->selectionIndex();
                 }
-                threads[j] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability);
+                threads[j] = std::async(&gen, this->generation[k].encoding, this->generation[l].encoding, ((double) rand() / RAND_MAX) < this->mutationProbability, duration);
             }
             j = (j + 1) % NUM_THREADS;
         }

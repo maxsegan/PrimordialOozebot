@@ -10,7 +10,7 @@
 #include <thread>
 
 #include "ParetoFront.h"
-#include "cudaSim.h"
+#include "cppSim.h"
 
 void logEncoding(OozebotEncoding &encoding) {
     printf("New encoding on pareto front: %d with fitness: %f length adj: %f\n", encoding.id, encoding.fitness, encoding.lengthAdj);
@@ -18,7 +18,7 @@ void logEncoding(OozebotEncoding &encoding) {
     // We now log this to report - should this be here? Maybe not, but the async is annoying.
     // Prolly wanted a callback
     SimInputs inputs = OozebotEncoding::inputsFromEncoding(encoding);
-    AsyncSimHandle handle = createSimHandle(encoding.id, inputs.points.size(), inputs.springs.size());
+    //AsyncSimHandle handle = createSimHandle(encoding.id, inputs.points.size(), inputs.springs.size());
     std::ofstream myfile;
     myfile.open("output/robo" + std::to_string(encoding.id) + "-" + std::to_string(encoding.fitness) + ".txt");
     // Janky JSON bc meh it's simple
@@ -55,19 +55,19 @@ void logEncoding(OozebotEncoding &encoding) {
     myfile << "\"simulation\" : [\n";
     double t = 0;
     double dt = 1.0 / 24.0; // 24fps
-    simulate(handle, inputs.points, inputs.springs, inputs.springPresets, 0, encoding.globalTimeInterval); // 0s to just capture initial conditions
+    //simulate(handle, inputs.points, inputs.springs, inputs.springPresets, 0, encoding.globalTimeInterval); // 0s to just capture initial conditions
     double simDuration = 30.0;
     while (t < simDuration) {
         myfile << "[\n";
         first = true;
-        for (int i = 0; i < handle.numPoints; i++) {
+        for (int i = 0; i < inputs.points.size(); i++) {
             if (exteriorPoints.find(i) == exteriorPoints.end()) {
                 continue;
             }
             if (!first) {
                 myfile << ",";
             }
-            Point p = handle.endPoints[i];
+            Point p = inputs.points[i];
             first = false;
             myfile << "[ " + std::to_string(p.x) + ", " + std::to_string(p.z) + ", " + std::to_string(p.y) + "]";
         }
@@ -75,17 +75,17 @@ void logEncoding(OozebotEncoding &encoding) {
             myfile << "]\n";
         } else {
             myfile << "],\n";
-            simulateAgain(handle, inputs.springPresets, t, t + dt, encoding.globalTimeInterval);
+            simulateAgainCPP(inputs.points, inputs.springs, inputs.springPresets, dt + t, t, encoding.globalTimeInterval);
         }
         t += dt;
     }
     myfile << "]\n";
     myfile << "}";
     myfile.close();
-    releaseSimHandle(handle);
+    //releaseSimHandle(handle);
 }
 
-bool ParetoFront::evaluateEncoding(OozebotEncoding encoding) {
+bool ParetoFront::evaluateEncoding(OozebotEncoding &encoding) {
     this->allResults.push_back({encoding.lengthAdj, encoding.fitness});
     int lengthAdjBucket = (int) round(encoding.lengthAdj / this->lengthAdjBucketSize);
 

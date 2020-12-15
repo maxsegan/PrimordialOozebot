@@ -3,7 +3,7 @@
 
 #include <utility>
 #include <vector>
-#include "cudaSim.h"
+
 #include "OozebotEncoding.h"
 
 void logEncoding(OozebotEncoding &encoding);
@@ -11,7 +11,7 @@ void logEncoding(OozebotEncoding &encoding);
 class ParetoFront {
 public:
     // This functions will add the evaluated encoding and invalidate others appropriately
-    bool evaluateEncoding(OozebotEncoding encoding);
+    bool evaluateEncoding(OozebotEncoding &encoding);
 
     // 1 if very novel, asymptotes to 0 as it's less novel
     double noveltyDegreeForEncoding(OozebotEncoding encoding);

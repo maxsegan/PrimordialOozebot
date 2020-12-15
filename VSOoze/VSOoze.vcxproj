@@ -83,12 +83,14 @@
     <CudaCompile Include="cudaSim.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cppSim.h" />
     <ClInclude Include="cudaSim.h" />
     <ClInclude Include="OozebotEncoding.h" />
     <ClInclude Include="ParetoFront.h" />
     <ClInclude Include="ParetoSelector.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="cppSim.cpp" />
     <ClCompile Include="evoAlgo.cpp" />
     <ClCompile Include="OozebotEncoding.cpp" />
     <ClCompile Include="ParetoFront.cpp" />
